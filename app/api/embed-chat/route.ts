@@ -116,10 +116,13 @@ export async function POST(req: NextRequest) {
   // stops another site from embedding the widget and spending the owner's tokens.
   // Origin-lock is REQUIRED: a widget with no allowed_origins is treated as
   // "not enabled anywhere" rather than open-to-all (which previously let any site
-  // embed it and burn the owner's tokens). Owners must list their domain(s).
+  // embed it and burn the owner's tokens). Owners must either list their
+  // domain(s), or set "*" to intentionally allow ANY domain — for a public widget
+  // embedded on arbitrary customer sites — in which case the per-IP rate limit and
+  // token caps below are what bound abuse.
   const allowed = (widget.allowed_origins ?? []).filter(Boolean);
   const host = requestHost(req);
-  const ok = host && allowed.some((a) => toHost(a) === host);
+  const ok = allowed.includes('*') || (host && allowed.some((a) => toHost(a) === host));
   if (!ok) return fail('This assistant is not enabled on this website.');
 
   const model = widget.model || 'gpt-4o';
