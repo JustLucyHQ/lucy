@@ -1,8 +1,7 @@
 name: CI
 
-# Catch regressions before they reach a deploy: typecheck + unit tests are hard
-# gates; lint is reported but non-blocking (pre-existing react-hooks/set-state-in-
-# effect debt in app/widgets/page.tsx — clean up, then flip to blocking).
+# Catch regressions before they reach a deploy: typecheck, unit tests, and lint
+# are all hard gates (the project is lint-clean — keep it that way).
 on:
   push:
     branches: [main]
@@ -22,6 +21,5 @@ jobs:
         run: npx tsc --noEmit
       - name: Test
         run: npm test
-      - name: Lint (non-blocking)
+      - name: Lint
         run: npm run lint
-        continue-on-error: true
