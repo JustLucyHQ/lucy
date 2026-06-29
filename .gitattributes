@@ -1,0 +1,4 @@
+# Shell scripts MUST stay LF so they run on the Linux server. `git archive` on
+# Windows otherwise applies core.autocrlf and injects CRLF into the tarball,
+# which breaks bash (`$'\r': command not found`, `pm2 restart justlucy\r`, …).
+*.sh text eol=lf

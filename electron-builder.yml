@@ -1,0 +1,41 @@
+appId: ai.justlucy.desktop
+productName: Lucy
+copyright: Copyright © 2026 Lucy AI
+
+directories:
+  output: dist-desktop
+  buildResources: electron/assets
+
+# App code that runs in Electron's main process. The Next standalone server is
+# shipped as an extraResource (below) and spawned at runtime.
+files:
+  - electron/**/*
+  - package.json
+
+# The whole Next standalone bundle (server.js + its node_modules + .next/static
+# + public, copied in by electron/copy-standalone.js) ships unpacked next to the
+# app under resources/standalone/.
+extraResources:
+  - from: .next/standalone
+    to: standalone
+
+win:
+  target:
+    - nsis
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+
+linux:
+  target:
+    - AppImage
+  category: Utility
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true

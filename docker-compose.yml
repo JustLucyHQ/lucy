@@ -1,0 +1,37 @@
+# Lucy via Docker Compose.
+#
+# NEXT_PUBLIC_* are baked at BUILD time (see Dockerfile) — they go under
+# build.args. Server-side secrets are read at runtime — they go under
+# environment. Provide values via a .env file next to this compose file or the
+# shell environment. Omit the Supabase build args to get a local-first image.
+
+services:
+  lucy:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://justlucy.ai}
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    ports:
+      - "3000:3000"
+    environment:
+      # ── Connected mode (server-side) ──────────────────────────────────────
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      # ── Auth emails (password reset + email-OTP 2FA) ──────────────────────
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      # ── Optional server-side fallback provider keys ───────────────────────
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # ── Local model discovery (host Ollama / LM Studio) ───────────────────
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - LM_STUDIO_URL=${LM_STUDIO_URL:-http://host.docker.internal:1234}
+    restart: unless-stopped
+    # Lets the container reach Ollama / LM Studio running on the host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

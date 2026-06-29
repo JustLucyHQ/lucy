@@ -1,0 +1,34 @@
+# Build artifacts & deps (the image installs/builds its own)
+node_modules
+.next
+out
+dist-desktop
+win-unpacked
+
+# Desktop-only — not used by the web server
+electron
+
+# VCS / tooling
+.git
+.gitignore
+.claude
+.vscode
+.idea
+
+# Secrets & local env (NEXT_PUBLIC_* arrive via --build-arg, secrets via runtime env)
+.env
+.env.local
+.env*.local
+
+# Tests (not needed in the image)
+__tests__
+
+# Logs & misc
+*.log
+npm-debug.log*
+coverage
+.DS_Store
+Thumbs.db
+
+# NOTE: do NOT ignore *.md — docs/kb/**/*.md is traced into the standalone
+# build (next.config.js outputFileTracingIncludes) and served at runtime.
