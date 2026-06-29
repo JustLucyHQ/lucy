@@ -312,7 +312,7 @@ export default function WidgetsPage() {
 
               <Field
                 label="Allowed domains"
-                hint="One per line. Leave empty to allow it anywhere. When set, only these sites can use the widget — protects your API key from being embedded elsewhere."
+                hint="One domain per line, e.g. example.com. Enter * to allow any site — use this for a public widget you embed on customers' websites. An empty list means the widget won't answer anywhere, so add your domain(s) or *. Listing specific domains keeps your API key from being used on other sites."
               >
                 <textarea
                   className={`${inputCls} h-20 resize-y font-mono text-xs`}
@@ -320,7 +320,7 @@ export default function WidgetsPage() {
                   onChange={(e) =>
                     set({ allowed_origins: e.target.value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean) })
                   }
-                  placeholder={'example.com\nwww.example.com'}
+                  placeholder={'example.com\nwww.example.com\n\n*  → any site'}
                 />
               </Field>
 
