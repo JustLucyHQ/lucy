@@ -114,12 +114,13 @@ export async function POST(req: NextRequest) {
   // Origin-lock: if the owner restricted this widget to specific domains, only
   // serve requests whose browser Origin/Referer host matches one of them. This
   // stops another site from embedding the widget and spending the owner's tokens.
+  // Origin-lock is REQUIRED: a widget with no allowed_origins is treated as
+  // "not enabled anywhere" rather than open-to-all (which previously let any site
+  // embed it and burn the owner's tokens). Owners must list their domain(s).
   const allowed = (widget.allowed_origins ?? []).filter(Boolean);
-  if (allowed.length) {
-    const host = requestHost(req);
-    const ok = host && allowed.some((a) => toHost(a) === host);
-    if (!ok) return fail('This assistant is not enabled on this website.');
-  }
+  const host = requestHost(req);
+  const ok = host && allowed.some((a) => toHost(a) === host);
+  if (!ok) return fail('This assistant is not enabled on this website.');
 
   const model = widget.model || 'gpt-4o';
   const provider = model.startsWith('claude') ? 'anthropic' : 'openai';
