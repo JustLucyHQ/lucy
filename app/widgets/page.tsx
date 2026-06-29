@@ -72,14 +72,8 @@ export default function WidgetsPage() {
     return list;
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load; state is set after the awaited fetch
   useEffect(() => { load(); }, [load]);
-
-  // Keep the draft in sync when a different widget is selected.
-  useEffect(() => {
-    const w = widgets.find((x) => x.id === selId) ?? null;
-    setDraft(w ? { ...w } : null);
-    setSavedTick(false);
-  }, [selId, widgets]);
 
   const create = async () => {
     const res = await fetch('/api/embed/widgets', {
@@ -132,8 +126,18 @@ export default function WidgetsPage() {
   const [convLoading, setConvLoading] = useState(false);
   const [openConv, setOpenConv] = useState<Transcript | null>(null);
 
-  // Reset to the Configure tab whenever a different widget is selected.
-  useEffect(() => { setTab('configure'); setOpenConv(null); }, [selId]);
+  // When the selected widget changes, load it into an editable draft and reset
+  // the view. Done during render via the "previous value" pattern (React's
+  // recommended alternative to a setState-in-effect) so it resolves in one pass.
+  const [prevSelId, setPrevSelId] = useState<string | null>(selId);
+  if (selId !== prevSelId) {
+    setPrevSelId(selId);
+    const w = widgets.find((x) => x.id === selId) ?? null;
+    setDraft(w ? { ...w } : null);
+    setSavedTick(false);
+    setTab('configure');
+    setOpenConv(null);
+  }
 
   const loadConvs = useCallback(async (widgetId: string) => {
     setConvLoading(true);
@@ -144,6 +148,7 @@ export default function WidgetsPage() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch transcripts when the Conversations tab opens
     if (tab === 'conversations' && selId) loadConvs(selId);
   }, [tab, selId, loadConvs]);
 
