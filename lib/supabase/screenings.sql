@@ -1,0 +1,5 @@
+-- Screening tables are now part of the main schema.sql
+-- This file is kept as a reference for the screening-specific DDL.
+-- To apply: run schema.sql which includes all lucy schema tables.
+--
+-- See: lib/supabase/schema.sql (section: Screening tables)

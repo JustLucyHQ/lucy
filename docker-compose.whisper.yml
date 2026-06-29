@@ -1,0 +1,30 @@
+# Local Whisper — offline, key-free speech-to-text for Lucy.
+#
+# Runs Speaches (the maintained successor to faster-whisper-server), which
+# exposes an OpenAI-compatible endpoint at /v1/audio/transcriptions. Lucy's
+# transcribe route already speaks this protocol — point Settings → Voice at it:
+#
+#   Provider : Whisper (Local)
+#   Base URL : http://localhost:5004/v1
+#   Model    : Systran/faster-whisper-base.en
+#
+# Run:   docker compose -f docker-compose.whisper.yml up -d
+# Models download on first use and are cached in the named volume below.
+#
+# GPU:   swap the image for ghcr.io/speaches-ai/speaches:latest-cuda and add a
+#        `deploy.resources.reservations.devices` GPU reservation. Confirm the
+#        current image tags at https://github.com/speaches-ai/speaches.
+
+services:
+  whisper:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    container_name: lucy-whisper
+    ports:
+      # Host 5004 → container 8000 (8000 is taken by Supabase Kong locally).
+      - "5004:8000"
+    volumes:
+      - whisper-models:/home/ubuntu/.cache/huggingface
+    restart: unless-stopped
+
+volumes:
+  whisper-models:
