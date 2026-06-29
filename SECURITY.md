@@ -4,10 +4,12 @@
 
 **Please do not report security vulnerabilities through public GitHub issues, discussions, or pull requests.**
 
-Instead, report them privately through GitHub's
-**[Report a vulnerability](https://github.com/JustLucyHQ/lucy/security/advisories/new)**
-button (repository → **Security** → **Advisories** → *Report a vulnerability*). This
-opens a private channel visible only to the maintainers.
+Instead, report them privately through either of these channels:
+
+- **Email:** [security@justlucy.ai](mailto:security@justlucy.ai)
+- **GitHub:** the **[Report a vulnerability](https://github.com/JustLucyHQ/lucy/security/advisories/new)**
+  button (repository → **Security** → **Advisories** → *Report a vulnerability*) — opens a
+  private channel visible only to the maintainers.
 
 Please include, where possible:
 
