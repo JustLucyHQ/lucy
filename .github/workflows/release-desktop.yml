@@ -1,0 +1,66 @@
+name: Build desktop apps
+
+# Builds the Lucy desktop installers on each platform's native runner — the only
+# way to produce a working macOS .dmg and Linux .AppImage (the bundled Next
+# standalone server carries native node modules that must match the target OS).
+#
+# Trigger by pushing a version tag (e.g. `git tag v0.1.3 && git push --tags`) or
+# from the Actions tab via "Run workflow".
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # let the release step upload installers
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Builds the standalone Next bundle with cloud + analytics env cleared
+      # (local-first), then copies it for Electron. Native modules compile for
+      # THIS runner's OS.
+      - name: Build local-first standalone bundle
+        run: npm run desktop:prepare
+
+      - name: Package installer
+        run: npx electron-builder --publish never
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lucy-${{ matrix.os }}
+          path: |
+            dist-desktop/*.exe
+            dist-desktop/*.dmg
+            dist-desktop/*.AppImage
+          if-no-files-found: ignore
+
+      - name: Attach to GitHub Release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-desktop/*.exe
+            dist-desktop/*.dmg
+            dist-desktop/*.AppImage
+          fail_on_unmatched_files: false
