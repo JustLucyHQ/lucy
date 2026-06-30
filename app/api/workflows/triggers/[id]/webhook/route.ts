@@ -33,6 +33,18 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
+// A browser hitting the URL does a GET — make the "why nothing happened" obvious
+// instead of a bare 405. (Webhooks fire on POST only.)
+export async function GET() {
+  return json(
+    {
+      error: 'This is a webhook endpoint — it only fires on POST, not when opened in a browser.',
+      how: 'curl -X POST "<this URL>" -H "content-type: application/json" -d \'{"key":"value"}\'',
+    },
+    405,
+  );
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const rl = checkRateLimit('wf-webhook', getClientIp(req), 60);
