@@ -20,6 +20,8 @@ import { ConnectorDetail } from '@/components/connectors/ConnectorDetail';
 import { InstalledList } from '@/components/connectors/InstalledList';
 import { AddCustomConnector } from '@/components/connectors/AddCustomConnector';
 import { registerContractorsRoom } from '@/lib/integrations/contractors-room';
+import { useStorageMode } from '@/lib/storage/provider';
+import { filterLocalCatalog, getLocalInstalls, installLocal, uninstallLocal, patchLocal } from '@/lib/mcp/local-installs';
 import type { CatalogServer, Installation } from '@/lib/mcp/types';
 
 // Ensure CTR integration is registered when this module loads (side-effect preserved)
@@ -54,6 +56,7 @@ const CATEGORIES: { id: Category; label: string }[] = [
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ConnectorsPage() {
+  const mode = useStorageMode(); // 'local' (standalone) → localStorage; 'supabase' → API routes
   const [tab, setTab] = useState<Tab>('browse');
   const [category, setCategory] = useState<Category>('all');
   const [query, setQuery] = useState('');
@@ -66,6 +69,7 @@ export default function ConnectorsPage() {
   // ── Fetch catalog + installations ──────────────────────────────────────────
 
   const fetchCatalog = useCallback(async (cat: Category, q: string) => {
+    if (mode === 'local') { setServers(filterLocalCatalog(cat === 'all' ? undefined : cat, q)); return; }
     const params = new URLSearchParams();
     if (cat !== 'all') params.set('category', cat);
     if (q.trim()) params.set('q', q.trim());
@@ -73,23 +77,25 @@ export default function ConnectorsPage() {
     if (!res.ok) return;
     const data = await res.json();
     setServers(data.servers ?? []);
-  }, []);
+  }, [mode]);
 
   const fetchInstallations = useCallback(async () => {
+    if (mode === 'local') { setInstallations(getLocalInstalls()); return; }
     const res = await fetch('/api/mcp/installations', { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     setInstallations(data.installations ?? []);
-  }, []);
+  }, [mode]);
 
   // OAuth-connected connectors (GitHub, Google, Slack, …) — tracked separately
   // from installs, so the UI must read them to show "Connected".
   const fetchConnections = useCallback(async () => {
+    if (mode === 'local') { setConnections([]); return; }
     const res = await fetch('/api/oauth/connections', { cache: 'no-store' });
     if (!res.ok) return;
     const data = await res.json();
     setConnections(data.connections ?? []);
-  }, []);
+  }, [mode]);
 
   const handleDisconnect = useCallback(
     async (slug: string) => {
@@ -119,6 +125,12 @@ export default function ConnectorsPage() {
   const handleInstall = useCallback(
     async (config: Record<string, string>) => {
       if (!selectedServer) return;
+      if (mode === 'local') {
+        installLocal(selectedServer.slug, config);
+        await fetchInstallations();
+        setSelectedServer(null);
+        return;
+      }
       const res = await fetch('/api/mcp/installations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,13 +142,19 @@ export default function ConnectorsPage() {
       // Close detail after successful install if server has no required secrets that are unset
       setSelectedServer(null);
     },
-    [selectedServer, fetchInstallations]
+    [selectedServer, fetchInstallations, mode]
   );
 
   const handleUninstall = useCallback(
     async (slug?: string) => {
       const target = slug ?? selectedServer?.slug;
       if (!target) return;
+      if (mode === 'local') {
+        uninstallLocal(target);
+        await fetchInstallations();
+        if (!slug) setSelectedServer(null);
+        return;
+      }
       const res = await fetch(`/api/mcp/installations?slug=${encodeURIComponent(target)}`, {
         method: 'DELETE',
       });
@@ -144,11 +162,12 @@ export default function ConnectorsPage() {
       await fetchInstallations();
       if (!slug) setSelectedServer(null);
     },
-    [selectedServer, fetchInstallations]
+    [selectedServer, fetchInstallations, mode]
   );
 
   const handleToggle = useCallback(
     async (slug: string, enabled: boolean) => {
+      if (mode === 'local') { patchLocal(slug, { enabled }); await fetchInstallations(); return; }
       await fetch('/api/mcp/installations', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -156,11 +175,12 @@ export default function ConnectorsPage() {
       });
       await fetchInstallations();
     },
-    [fetchInstallations]
+    [fetchInstallations, mode]
   );
 
   const handleApprovalToggle = useCallback(
     async (slug: string, requireApproval: boolean) => {
+      if (mode === 'local') { patchLocal(slug, { require_approval: requireApproval }); await fetchInstallations(); return; }
       await fetch('/api/mcp/installations', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -168,7 +188,7 @@ export default function ConnectorsPage() {
       });
       await fetchInstallations();
     },
-    [fetchInstallations]
+    [fetchInstallations, mode]
   );
 
   // ── Derived data ───────────────────────────────────────────────────────────
@@ -185,10 +205,13 @@ export default function ConnectorsPage() {
   // So we load them from the catalog (allServers = servers from catalog, unfilitered).
   // We pass `servers` (full catalog page) but also need unfilitered; when in installed tab
   // we re-fetch without filters to get all. For simplicity, keep a separate allServers ref.
-  const [allServers, setAllServers] = useState<CatalogServer[]>([]);
+  const [allServersRemote, setAllServersRemote] = useState<CatalogServer[]>([]);
   useEffect(() => {
-    fetch('/api/mcp/registry', { cache: 'no-store' }).then((r) => r.json()).then((d) => setAllServers(d.servers ?? []));
-  }, []);
+    if (mode === 'local') return; // local catalog is derived from code, no fetch
+    fetch('/api/mcp/registry', { cache: 'no-store' }).then((r) => r.json()).then((d) => setAllServersRemote(d.servers ?? []));
+  }, [mode]);
+  // Local mode: the full catalog comes straight from the bundled CATALOG (cheap to filter each render).
+  const allServers = mode === 'local' ? filterLocalCatalog() : allServersRemote;
 
   const selectedInstallation = selectedServer
     ? installationMap.get(selectedServer.slug)
