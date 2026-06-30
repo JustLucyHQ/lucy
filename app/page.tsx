@@ -9,7 +9,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * Public home page. Two visual versions while we decide which ships:
+ * Public home page (connected/web only — in standalone mode proxy.ts redirects the
+ * root to /onboarding before this renders). Two visual versions while we decide:
  *   /              → modern (Luminous tone, default)
  *   /?v=corporate  → light corporate
  */
