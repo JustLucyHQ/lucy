@@ -44,3 +44,5 @@ npm run dist        # builds the standalone server + produces installers in dist
 ```
 
 `dist` produces an NSIS `.exe` (Windows), a `.dmg` (macOS), and an `.AppImage` (Linux) via electron-builder. Build on — or cross-build for — each target OS. The desktop build clears the cloud / analytics env so the packaged app stays local-first. For running Lucy as a shared server instead, see [Self-hosting](/docs/self-hosting).
+
+**Maintainers:** for the full release process — including how to build the **standalone** vs the **sign-in / cloud** flavor, the tag→CI release flow, and the build gotchas — see [`docs/DESKTOP-RELEASE.md`](../../DESKTOP-RELEASE.md).
