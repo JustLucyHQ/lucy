@@ -7,22 +7,42 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-interface EventRow { id: string; table_name: string; op: string; record: unknown }
+interface EventRow { id: string; table_name: string; op: string; record: unknown; old_record: unknown }
+
+/** Optional change filter — fire only when a field changes (and optionally to/from a value). */
+export interface ChangeWhen {
+  field: string;
+  from?: unknown;
+  to?: unknown;
+  changed?: boolean;
+}
 
 interface RecordEventTrigger {
   id: string;
   user_id: string;
   workflow_id: string | null;
   name: string;
-  settings: { table?: string; events?: string[] } | null;
+  settings: { table?: string; events?: string[]; when?: ChangeWhen } | null;
   definition: unknown;
   inputs: Record<string, string> | null;
+}
+
+/** True when the event satisfies the trigger's change filter (no filter ⇒ always true). */
+export function matchesWhen(when: ChangeWhen | undefined, oldRec: unknown, newRec: unknown): boolean {
+  if (!when || !when.field) return true;
+  const f = when.field;
+  const oldVal = (oldRec as Record<string, unknown> | null)?.[f];
+  const newVal = (newRec as Record<string, unknown> | null)?.[f];
+  if (when.changed === true && oldVal === newVal) return false;
+  if (when.to !== undefined && String(newVal) !== String(when.to)) return false;
+  if (when.from !== undefined && String(oldVal) !== String(when.from)) return false;
+  return true;
 }
 
 export async function processRecordEvents(client: SupabaseClient, limit = 100): Promise<number> {
   const { data: events, error } = await client
     .from('workflow_events')
-    .select('id, table_name, op, record')
+    .select('id, table_name, op, record, old_record')
     .order('created_at', { ascending: true })
     .limit(limit);
   if (error || !events || events.length === 0) return 0;
@@ -45,6 +65,8 @@ export async function processRecordEvents(client: SupabaseClient, limit = 100): 
       if (!Array.isArray(t.settings?.events) || !t.settings.events.includes(ev.op)) continue;
       // Tenant isolation: only fire for the trigger owner's own records.
       if (recordUserId !== t.user_id) continue;
+      // Optional change filter: only fire when the watched field actually changed.
+      if (!matchesWhen(t.settings?.when, ev.old_record, ev.record)) continue;
       const { error: insErr } = await client.from('workflow_runs').insert({
         user_id: t.user_id,
         workflow_id: t.workflow_id,
@@ -55,6 +77,7 @@ export async function processRecordEvents(client: SupabaseClient, limit = 100): 
           event_table: ev.table_name,
           event_op: ev.op,
           record: JSON.stringify(ev.record ?? null),
+          record_old: JSON.stringify(ev.old_record ?? null),
         },
         status: 'queued',
         enqueued_at: new Date().toISOString(),
