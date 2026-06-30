@@ -17,6 +17,7 @@ const CRED_ENV: Record<string, { id: string; secret: string }> = {
   'google-calendar': GOOGLE_ENV,
   'microsoft-365': { id: 'MS_OAUTH_CLIENT_ID', secret: 'MS_OAUTH_CLIENT_SECRET' },
   slack: { id: 'SLACK_OAUTH_CLIENT_ID', secret: 'SLACK_OAUTH_CLIENT_SECRET' },
+  asana: { id: 'ASANA_OAUTH_CLIENT_ID', secret: 'ASANA_OAUTH_CLIENT_SECRET' },
 };
 
 /** Provider-specific authorize quirks for the 'app' flow. */
