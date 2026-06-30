@@ -11,7 +11,9 @@ export const metadata: Metadata = {
     'Download the Lucy desktop app for Windows, macOS, or Linux. Local-first, works offline, and connected to every AI provider. Free and open source.',
 };
 
-const VERSION = '0.1.4';
+// Fallback shown if the GitHub "latest release" lookup fails; the DownloadPanel
+// otherwise links directly to the newest release's installers.
+const VERSION = '0.1.9';
 
 const PERKS: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: ShieldCheck, title: 'Local-first by default', body: 'Your chats, memory, and provider keys stay on your machine. No account needed to start.' },
@@ -65,7 +67,7 @@ export default function DownloadPage() {
           <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-6 text-sm text-gray-400 leading-relaxed">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-lucy-300 mb-3">System requirements</p>
             <ul className="space-y-1.5">
-              <li>• <span className="text-gray-300">Windows</span> 10 or 11 (64-bit) — code-signed installer.</li>
+              <li>• <span className="text-gray-300">Windows</span> 10 or 11 (64-bit) — NSIS installer.</li>
               <li>• <span className="text-gray-300">macOS</span> 12 Monterey or later (Apple Silicon &amp; Intel).</li>
               <li>• <span className="text-gray-300">Linux</span> — AppImage, runs on most distributions.</li>
             </ul>
