@@ -12,7 +12,6 @@ const SOCIALS = [
 const LINKS = [
   { href: '/download', label: 'Download' },
   { href: '/docs', label: 'Docs' },
-  { href: '/docs/quick-start', label: 'Getting started' },
   { href: '/privacy', label: 'Privacy' },
   { href: '/terms', label: 'Terms' },
   { href: '/payments', label: 'Payments' },
