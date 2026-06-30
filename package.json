@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "next dev -p 3001",
+    "dev:standalone": "cross-env NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_ANON_KEY= NEXT_PUBLIC_GA_ID= next dev -p 3060",
     "build": "next build",
     "start": "next start",
     "start:standalone": "node .next/standalone/server.js",
