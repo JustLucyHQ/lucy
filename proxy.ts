@@ -28,8 +28,13 @@ export async function proxy(request: NextRequest) {
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const authEnabled = Boolean(supabaseUrl && supabaseKey);
 
-  // Standalone mode — allow everything
+  // Standalone mode — no marketing or sign-up audience. Send the root straight to
+  // onboarding (which itself routes already-set-up users on to chat); everything
+  // else is public. The landing page is only for the connected public web.
   if (!authEnabled) {
+    if (request.nextUrl.pathname === '/') {
+      return NextResponse.redirect(new URL('/onboarding', request.url));
+    }
     return NextResponse.next();
   }
 
