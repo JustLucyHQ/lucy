@@ -68,4 +68,37 @@ describe('processRecordEvents', () => {
     expect(n).toBe(0);
     expect(rec.inserts).toHaveLength(0);
   });
+
+  const changeTrigger = {
+    ...matchTrigger,
+    settings: { table: 'conversations', events: ['UPDATE'], when: { field: 'title', changed: true } },
+  };
+
+  it('fires when the watched field changed, and passes record_old into inputs', async () => {
+    const rec: Rec = { inserts: [], deletedIds: [] };
+    const events = [{ id: 'e4', table_name: 'conversations', op: 'UPDATE', record: { user_id: 'u1', title: 'new' }, old_record: { user_id: 'u1', title: 'old' } }];
+    const n = await processRecordEvents(fakeClient(events, [changeTrigger], rec));
+    expect(n).toBe(1);
+    expect(rec.inserts[0].inputs).toMatchObject({ record_old: JSON.stringify({ user_id: 'u1', title: 'old' }) });
+  });
+
+  it('does NOT fire when the watched field is unchanged (but still consumes the event)', async () => {
+    const rec: Rec = { inserts: [], deletedIds: [] };
+    const events = [{ id: 'e5', table_name: 'conversations', op: 'UPDATE', record: { user_id: 'u1', title: 'same' }, old_record: { user_id: 'u1', title: 'same' } }];
+    const n = await processRecordEvents(fakeClient(events, [changeTrigger], rec));
+    expect(n).toBe(0);
+    expect(rec.inserts).toHaveLength(0);
+    expect(rec.deletedIds).toEqual(['e5']);
+  });
+
+  it('respects when.to — fires only when the new value equals the target', async () => {
+    const rec: Rec = { inserts: [], deletedIds: [] };
+    const trig = { ...matchTrigger, settings: { table: 'conversations', events: ['UPDATE'], when: { field: 'status', changed: true, to: 'done' } } };
+    const events = [
+      { id: 'e6', table_name: 'conversations', op: 'UPDATE', record: { user_id: 'u1', status: 'done' }, old_record: { user_id: 'u1', status: 'open' } },
+      { id: 'e7', table_name: 'conversations', op: 'UPDATE', record: { user_id: 'u1', status: 'wip' }, old_record: { user_id: 'u1', status: 'open' } },
+    ];
+    const n = await processRecordEvents(fakeClient(events, [trig], rec));
+    expect(n).toBe(1);
+  });
 });
