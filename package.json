@@ -1,6 +1,6 @@
 {
   "name": "lucy-ai",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "main": "electron/main.js",
   "bin": {
@@ -12,7 +12,7 @@
     "build": "next build",
     "start": "next start",
     "start:standalone": "node .next/standalone/server.js",
-    "desktop:build": "cross-env NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_ANON_KEY= NEXT_PUBLIC_GA_ID= next build",
+    "desktop:build": "node scripts/desktop-build.js",
     "desktop:prepare": "npm run desktop:build && node electron/copy-standalone.js",
     "electron:dev": "npm run desktop:prepare && electron .",
     "dist": "npm run desktop:prepare && electron-builder",
