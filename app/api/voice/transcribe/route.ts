@@ -23,10 +23,17 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  // Auth — require a valid session or API key.
-  const { userId } = await resolveMemoryAuth(req);
-  if (!userId) {
-    return NextResponse.json({ text: '', error: 'Unauthorized' }, { status: 401 });
+  // Auth — require a valid session or API key in connected mode. Standalone
+  // (no Supabase) is single-user local: the user's own key rides in the headers,
+  // so there's no backend identity to check and gating would only break voice.
+  const supabaseEnabled = Boolean(
+    (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  if (supabaseEnabled) {
+    const { userId } = await resolveMemoryAuth(req);
+    if (!userId) {
+      return NextResponse.json({ text: '', error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   let formData: FormData;

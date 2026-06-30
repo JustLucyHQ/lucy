@@ -169,6 +169,20 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // ── Standalone MCP installs ────────────────────────────────────────
+        // With no Supabase, connector installs live in the client's localStorage,
+        // so the chat page passes them in the body to let their tools run server-
+        // side (the Node server can still spawn stdio/http connectors). The body is
+        // trusted for this ONLY in standalone mode — never when Supabase is enabled.
+        const standaloneInstalls: Array<{ server_slug: string; config: Record<string, unknown>; enabled: boolean; require_approval?: boolean }> =
+          (!supabaseEnabled && Array.isArray((body as { mcpInstalls?: unknown }).mcpInstalls))
+            ? ((body as { mcpInstalls: unknown[] }).mcpInstalls).filter(
+                (i): i is { server_slug: string; config: Record<string, unknown>; enabled: boolean } =>
+                  Boolean(i && typeof (i as { server_slug?: unknown }).server_slug === 'string' && (i as { enabled?: unknown }).enabled),
+              )
+            : [];
+        const useStandaloneMcp = standaloneInstalls.length > 0;
+
         // ── Persona system prompt injection ───────────────────────────────
         let messagesWithContext: ChatMessage[] = messages;
 
@@ -375,22 +389,41 @@ export async function POST(req: NextRequest) {
         // request (authUserId); the request body is never trusted.
         const mcpUserId: string | null = authUserId;
 
-        if ((toolCapableOpenAI || toolCapableAnthropic) && mcpUserId) {
-          // Build a service-role Supabase client scoped to the lucy schema
-          const svcUrl = (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
-          const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-          if (svcUrl && svcKey) {
-            const mcpSvc = createClient(svcUrl, svcKey, { db: { schema: 'lucy' } });
-            let loadedTools: Awaited<ReturnType<typeof loadToolsForUser>> = [];
+        if ((toolCapableOpenAI || toolCapableAnthropic) && (mcpUserId || useStandaloneMcp)) {
+          // Resolve the MCP backend behind a uniform interface so the agentic loop
+          // below is identical for both modes: Supabase (connected) or the request's
+          // localStorage installs (standalone). execTool runs a single tool call.
+          let loadedTools: Awaited<ReturnType<typeof loadToolsForUser>> = [];
+          let mcpInstalls: any[] = [];
+          let execTool: ((slug: string, toolName: string, args: Record<string, unknown>) => Promise<unknown>) | null = null;
+
+          if (useStandaloneMcp) {
+            const { loadToolsStandalone, executeStandaloneTool } = await import('@/lib/mcp/standalone-runtime');
+            mcpInstalls = standaloneInstalls;
             try {
-              loadedTools = await loadToolsForUser(mcpSvc, mcpUserId);
+              loadedTools = await loadToolsStandalone(standaloneInstalls);
             } catch {
               // Non-fatal — fall through to the no-tools path
             }
+            execTool = (slug, toolName, args) => executeStandaloneTool(standaloneInstalls, slug, toolName, args);
+          } else {
+            // Build a service-role Supabase client scoped to the lucy schema
+            const svcUrl = (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+            const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            if (svcUrl && svcKey) {
+              const mcpSvc = createClient(svcUrl, svcKey, { db: { schema: 'lucy' } });
+              try {
+                loadedTools = await loadToolsForUser(mcpSvc, mcpUserId!);
+              } catch {
+                // Non-fatal — fall through to the no-tools path
+              }
+              // Fetch installations once and reuse throughout the tool loop
+              mcpInstalls = await getInstallations(mcpSvc, mcpUserId!);
+              execTool = (slug, toolName, args) => executeMcpTool(mcpSvc, mcpUserId!, slug, toolName, args, mcpInstalls);
+            }
+          }
 
-            // Fetch installations once and reuse throughout the tool loop
-            const mcpInstalls = await getInstallations(mcpSvc, mcpUserId!);
-
+          if (execTool) {
             if (loadedTools.length > 0) {
               // ── Agentic loop ─────────────────────────────────────────────
               const MAX_ROUNDS = 5;
@@ -498,7 +531,7 @@ export async function POST(req: NextRequest) {
                         });
                         ok = false;
                       } else {
-                        const result = await executeMcpTool(mcpSvc, mcpUserId!, slug, toolName, args, mcpInstalls);
+                        const result = await execTool(slug, toolName, args);
                         resultContent = JSON.stringify(result);
                       }
                     } catch (execErr) {
@@ -618,7 +651,7 @@ export async function POST(req: NextRequest) {
                         });
                         ok = false;
                       } else {
-                        const result = await executeMcpTool(mcpSvc, mcpUserId!, slug, toolName, args, mcpInstalls);
+                        const result = await execTool(slug, toolName, args);
                         resultContent = JSON.stringify(result);
                       }
                     } catch (execErr) {
