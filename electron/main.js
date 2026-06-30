@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const net = require('net');
 const http = require('http');
+const fs = require('fs');
 
 const CLOUD_URL = 'https://justlucy.ai';
 // Desktop app skips the marketing home page: load the app directly. The auth
@@ -35,27 +36,41 @@ const SPLASH_URL =
   );
 
 // Shown if the bundled local server can't start. We do NOT fall back to the
-// cloud site — a standalone app must stay local — so surface the failure and let
-// the user reopen the app (which retries the server boot).
-const ERROR_URL =
-  'data:text/html;charset=utf-8,' +
-  encodeURIComponent(
-    `<!doctype html><html><head><meta charset="utf-8"><style>` +
-      `*{margin:0;box-sizing:border-box}html,body{height:100%}` +
-      `body{background:#0c0a16;display:flex;align-items:center;justify-content:center;` +
-      `font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;padding:24px}` +
-      `.w{text-align:center;max-width:420px}` +
-      `.logo{width:56px;height:56px;border-radius:16px;margin:0 auto 18px;` +
-      `background:linear-gradient(135deg,#a78bfa,#7c3aed)}` +
-      `h1{font-size:19px;font-weight:800;margin-bottom:10px}` +
-      `p{font-size:13px;color:#9ca3af;line-height:1.5}` +
-      `</style></head><body><div class="w"><div class="logo"></div>` +
-      `<h1>Lucy couldn’t start its local engine</h1>` +
-      `<p>The bundled local server didn’t start. Please quit and reopen Lucy. ` +
-      `If it keeps happening, reinstall the latest version.</p></div></body></html>`
+// cloud site — a standalone app must stay local — so we surface the server's
+// actual output (also written to lucy-server.log) so the failure is diagnosable.
+function escapeHtml(s) {
+  return String(s || '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+}
+function errorPageUrl(detail) {
+  let logPath = 'lucy-server.log';
+  try { logPath = path.join(app.getPath('userData'), 'lucy-server.log'); } catch { /* app not ready */ }
+  const tail = escapeHtml(String(detail || '').slice(-2600));
+  return (
+    'data:text/html;charset=utf-8,' +
+    encodeURIComponent(
+      `<!doctype html><html><head><meta charset="utf-8"><style>` +
+        `*{margin:0;box-sizing:border-box}html,body{height:100%}` +
+        `body{background:#0c0a16;display:flex;align-items:center;justify-content:center;` +
+        `font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;padding:24px}` +
+        `.w{max-width:660px;width:100%;text-align:center}` +
+        `.logo{width:52px;height:52px;border-radius:15px;margin:0 auto 16px;` +
+        `background:linear-gradient(135deg,#a78bfa,#7c3aed)}` +
+        `h1{font-size:18px;font-weight:800;margin-bottom:8px}` +
+        `p{font-size:13px;color:#9ca3af;line-height:1.5;margin-bottom:6px}` +
+        `pre{text-align:left;margin-top:14px;padding:12px;border-radius:8px;background:#16131f;` +
+        `color:#c9b8f0;font-size:11px;line-height:1.45;max-height:240px;overflow:auto;white-space:pre-wrap}` +
+        `</style></head><body><div class="w"><div class="logo"></div>` +
+        `<h1>Lucy couldn’t start its local engine</h1>` +
+        `<p>The bundled local server didn’t start. Quit and reopen Lucy to retry.</p>` +
+        `<p style="font-size:11px;color:#6b7280">Full log: ${escapeHtml(logPath)}</p>` +
+        (tail ? `<pre>${tail}</pre>` : '') +
+        `</div></body></html>`
+    )
   );
+}
 
 let serverProcess = null;
+let serverLog = '';
 let mainWindow = null;
 let localUrl = null;
 
@@ -71,10 +86,27 @@ function getFreePort() {
   });
 }
 
-function waitForServer(port, timeoutMs = 30000) {
+function appendServerLog(chunk) {
+  serverLog += chunk;
+  if (serverLog.length > 24000) serverLog = serverLog.slice(-24000);
+  try {
+    fs.appendFileSync(path.join(app.getPath('userData'), 'lucy-server.log'), chunk);
+  } catch {
+    /* logging is best-effort */
+  }
+}
+
+function waitForServer(port, timeoutMs = 90000) {
+  // Resolve when /chat answers; reject early if the server process exits first.
+  // The long timeout tolerates a fresh, unsigned app on a clean PC where Windows
+  // Defender scans every file the Node server touches on first launch.
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const attempt = () => {
+      if (serverProcess && serverProcess.exitCode !== null) {
+        reject(new Error(`server process exited (code ${serverProcess.exitCode}) before it was ready`));
+        return;
+      }
       // Probe the page we actually load (/chat) so the route is warm by the
       // time loadURL fires — avoids rendering the heavy '/' landing twice.
       const req = http.get({ host: '127.0.0.1', port, path: HOME_PATH }, (res) => {
@@ -82,8 +114,8 @@ function waitForServer(port, timeoutMs = 30000) {
         resolve();
       });
       req.on('error', () => {
-        if (Date.now() - start > timeoutMs) reject(new Error('Lucy server did not start in time'));
-        else setTimeout(attempt, 120);
+        if (Date.now() - start > timeoutMs) reject(new Error('local server did not respond in time'));
+        else setTimeout(attempt, 150);
       });
     };
     attempt();
@@ -99,6 +131,14 @@ function serverEntryPath() {
 async function startLocalServer() {
   const port = await getFreePort();
   const entry = serverEntryPath();
+  if (!fs.existsSync(entry)) {
+    throw new Error(`bundled server not found at ${entry}`);
+  }
+  try {
+    fs.writeFileSync(path.join(app.getPath('userData'), 'lucy-server.log'), '');
+  } catch {
+    /* best-effort */
+  }
   serverProcess = spawn(process.execPath, [entry], {
     cwd: path.dirname(entry),
     env: {
@@ -108,8 +148,14 @@ async function startLocalServer() {
       PORT: String(port),
       HOSTNAME: '127.0.0.1',
     },
-    stdio: 'inherit',
+    // Capture output — a packaged GUI app has no console, so 'inherit' would
+    // black-hole any crash. Piping it lets us log + show it on the error page.
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  if (serverProcess.stdout) serverProcess.stdout.on('data', (b) => appendServerLog(b.toString()));
+  if (serverProcess.stderr) serverProcess.stderr.on('data', (b) => appendServerLog(b.toString()));
+  serverProcess.on('error', (e) => appendServerLog(`\n[spawn error] ${e.message}\n`));
+
   await waitForServer(port);
   return `http://127.0.0.1:${port}`;
 }
@@ -190,18 +236,24 @@ async function createWindow() {
   mainWindow.loadURL(SPLASH_URL);
   buildMenu();
 
+  let startErr = null;
   try {
     localUrl = await startLocalServer();
   } catch (err) {
+    startErr = err;
     console.error('[lucy-desktop] local server failed to start:', err.message);
     localUrl = null;
   }
   buildMenu(); // refresh so the "Local (offline)" menu item reflects availability
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    // Local-only: load the bundled server, or an error page if it didn't boot.
-    // NEVER fall back to the live cloud site — that would break standalone.
-    mainWindow.loadURL(localUrl ? localUrl + HOME_PATH : ERROR_URL);
+    // Local-only: load the bundled server, or an error page (with the server's
+    // own output) if it didn't boot. NEVER fall back to the live cloud site.
+    mainWindow.loadURL(
+      localUrl
+        ? localUrl + HOME_PATH
+        : errorPageUrl(serverLog || (startErr && startErr.message) || 'unknown error')
+    );
   }
 }
 
