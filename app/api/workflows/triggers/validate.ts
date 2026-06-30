@@ -49,6 +49,14 @@ export function validateTriggerBody(body: unknown): TriggerValidateResult {
     if (!Array.isArray(events) || events.length === 0 || !events.every((e) => VALID_OPS.includes(e as string))) {
       return { ok: false, status: 400, error: 'events must be a non-empty subset of INSERT, UPDATE, DELETE' };
     }
+    // Optional change filter: { field, from?, to?, changed? } — fire only when the field changes.
+    const when = settings.when;
+    if (when !== undefined) {
+      const w = when as { field?: unknown };
+      if (typeof when !== 'object' || when === null || typeof w.field !== 'string' || !w.field.trim()) {
+        return { ok: false, status: 400, error: 'when.field must be a non-empty string' };
+      }
+    }
   }
 
   return {

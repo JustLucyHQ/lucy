@@ -20,7 +20,7 @@ const EVENT_OPS: { op: string; label: string }[] = [
 
 interface Trigger {
   id: string; name: string; type: 'cron' | 'webhook' | 'record_event';
-  settings: { expr?: string; table?: string; events?: string[] };
+  settings: { expr?: string; table?: string; events?: string[]; when?: { field: string; to?: unknown; changed?: boolean } };
   enabled: boolean; secret: string | null; next_run_at: string | null;
 }
 
@@ -36,6 +36,8 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
   const [cron, setCron] = useState('0 9 * * *');
   const [recTable, setRecTable] = useState('conversations');
   const [recEvents, setRecEvents] = useState<string[]>(['INSERT']);
+  const [recField, setRecField] = useState('');
+  const [recTo, setRecTo] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -57,7 +59,11 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
       if (type === 'cron') body.settings = { expr: cron };
       if (type === 'record_event') {
         if (recEvents.length === 0) { setErr('Pick at least one event'); return; }
-        body.settings = { table: recTable, events: recEvents };
+        const settings: Record<string, unknown> = { table: recTable, events: recEvents };
+        if (recField.trim()) {
+          settings.when = { field: recField.trim(), changed: true, ...(recTo.trim() ? { to: recTo.trim() } : {}) };
+        }
+        body.settings = settings;
       }
       const res = await fetch('/api/workflows/triggers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
@@ -99,7 +105,7 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
               <span className="text-gray-200 flex-1 truncate">
                 {t.type === 'cron' ? `cron: ${t.settings?.expr}`
                   : t.type === 'webhook' ? 'webhook'
-                  : `${t.settings?.table} ${(t.settings?.events ?? []).join('/')}`}
+                  : `${t.settings?.table} ${(t.settings?.events ?? []).join('/')}${t.settings?.when ? ` · when ${t.settings.when.field} changes` : ''}`}
               </span>
               <button onClick={() => toggle(t)} className={t.enabled ? 'text-emerald-400' : 'text-gray-500'}>{t.enabled ? 'on' : 'off'}</button>
               <button onClick={() => remove(t)} className="text-gray-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -145,6 +151,13 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
                   {label}
                 </label>
               ))}
+            </div>
+            <div className="space-y-1.5 pt-1.5 border-t border-gray-700/50">
+              <label className="block text-gray-500 text-[11px]">Only when a field changes (optional — applies to Updated)</label>
+              <input value={recField} onChange={(e) => setRecField(e.target.value)} placeholder="field name (e.g. status)" className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200" />
+              {recField.trim() && (
+                <input value={recTo} onChange={(e) => setRecTo(e.target.value)} placeholder="…and its new value equals (optional)" className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200" />
+              )}
             </div>
             {err && <p className="text-red-400 text-xs">{err}</p>}
             <div className="flex gap-2">
