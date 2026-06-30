@@ -12,7 +12,7 @@ interface CronTriggerRow {
   user_id: string;
   workflow_id: string | null;
   name: string;
-  settings: { expr?: string; timezone?: string } | null;
+  settings: { expr?: string; timezone?: string; run_once?: boolean; run_at?: string } | null;
   definition: unknown;
   inputs: Record<string, string> | null;
   next_run_at: string | null;
@@ -30,8 +30,9 @@ export async function enqueueDueCronTriggers(client: SupabaseClient, now: Date =
 
   let count = 0;
   for (const t of data as CronTriggerRow[]) {
+    const once = !!t.settings?.run_once;
     const expr = t.settings?.expr;
-    if (!expr) continue;
+    if (!once && !expr) continue;
 
     // Idempotency key per due slot: a double-fire for the same scheduled time
     // (e.g. after a restart) is deduped by the unique index, not double-run.
@@ -44,18 +45,26 @@ export async function enqueueDueCronTriggers(client: SupabaseClient, now: Date =
       inputs: t.inputs ?? {},
       status: 'queued',
       enqueued_at: iso,
-      trigger: 'cron',
+      trigger: once ? 'once' : 'cron',
       max_attempts: 3,
       idempotency_key: `cron:${t.id}:${dueSlot}`,
     });
     const isDup = !!insErr && (insErr as { code?: string }).code === '23505';
     if (insErr && !isDup) continue; // real error: leave it due, retry next tick
 
-    const next = nextRunAfter(expr, now, t.settings?.timezone);
-    await client
-      .from('workflow_triggers')
-      .update({ next_run_at: next ? next.toISOString() : null, last_enqueued_at: iso })
-      .eq('id', t.id);
+    if (once) {
+      // One-shot: fire once, then disable (don't reschedule).
+      await client
+        .from('workflow_triggers')
+        .update({ next_run_at: null, enabled: false, last_enqueued_at: iso })
+        .eq('id', t.id);
+    } else {
+      const next = nextRunAfter(expr as string, now, t.settings?.timezone);
+      await client
+        .from('workflow_triggers')
+        .update({ next_run_at: next ? next.toISOString() : null, last_enqueued_at: iso })
+        .eq('id', t.id);
+    }
     if (!isDup) count++;
   }
   return count;

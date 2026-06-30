@@ -3,13 +3,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { X, Clock, Webhook, Database, Trash2, Plus, Copy, Play } from 'lucide-react';
-
-const CRON_PRESETS: { label: string; expr: string }[] = [
-  { label: 'Every hour', expr: '0 * * * *' },
-  { label: 'Every day at 09:00', expr: '0 9 * * *' },
-  { label: 'Every Monday at 09:00', expr: '0 9 * * 1' },
-  { label: 'Custom…', expr: '' },
-];
+import { ScheduleBuilder } from './ScheduleBuilder';
 
 const WATCHED_TABLES = ['conversations', 'memories'];
 const EVENT_OPS: { op: string; label: string }[] = [
@@ -20,7 +14,7 @@ const EVENT_OPS: { op: string; label: string }[] = [
 
 interface Trigger {
   id: string; name: string; type: 'cron' | 'webhook' | 'record_event';
-  settings: { expr?: string; table?: string; events?: string[]; when?: { field: string; to?: unknown; changed?: boolean } };
+  settings: { expr?: string; table?: string; events?: string[]; when?: { field: string; to?: unknown; changed?: boolean }; run_once?: boolean; run_at?: string; timezone?: string };
   enabled: boolean; secret: string | null; next_run_at: string | null; last_enqueued_at?: string | null;
 }
 
@@ -33,7 +27,6 @@ interface Props {
 export function TriggersPanel({ workflowId, definition, onClose }: Props) {
   const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [adding, setAdding] = useState<'cron' | 'record' | null>(null);
-  const [cron, setCron] = useState('0 9 * * *');
   const [recTable, setRecTable] = useState('conversations');
   const [recEvents, setRecEvents] = useState<string[]>(['INSERT']);
   const [recField, setRecField] = useState('');
@@ -56,7 +49,6 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
     setBusy(true); setErr(null);
     try {
       const body: Record<string, unknown> = { workflowId, type, definition, name: definition.name || 'Trigger' };
-      if (type === 'cron') body.settings = { expr: cron };
       if (type === 'record_event') {
         if (recEvents.length === 0) { setErr('Pick at least one event'); return; }
         const settings: Record<string, unknown> = { table: recTable, events: recEvents };
@@ -66,6 +58,16 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
         body.settings = settings;
       }
       const res = await fetch('/api/workflows/triggers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) { setErr(data?.error || 'Failed'); return; }
+      setAdding(null); await load();
+    } finally { setBusy(false); }
+  };
+
+  const createSchedule = async (settings: Record<string, unknown>) => {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch('/api/workflows/triggers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflowId, type: 'cron', definition, name: definition.name || 'Schedule', settings }) });
       const data = await res.json();
       if (!res.ok) { setErr(data?.error || 'Failed'); return; }
       setAdding(null); await load();
@@ -110,7 +112,7 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
                 : t.type === 'webhook' ? <Webhook className="w-3.5 h-3.5 text-lucy-400" />
                 : <Database className="w-3.5 h-3.5 text-lucy-400" />}
               <span className="text-gray-200 flex-1 truncate">
-                {t.type === 'cron' ? `cron: ${t.settings?.expr}`
+                {t.type === 'cron' ? (t.settings?.run_once ? `once: ${t.settings?.run_at ? new Date(t.settings.run_at).toLocaleString() : ''}` : `cron: ${t.settings?.expr}`)
                   : t.type === 'webhook' ? 'webhook'
                   : `${t.settings?.table} ${(t.settings?.events ?? []).join('/')}${t.settings?.when ? ` · when ${t.settings.when.field} changes` : ''}`}
               </span>
@@ -134,17 +136,10 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
         ))}
 
         {adding === 'cron' && (
-          <div className="rounded-lg border border-gray-700 bg-gray-800 p-2.5 space-y-2">
-            <select value={CRON_PRESETS.some((p) => p.expr === cron) ? cron : ''} onChange={(e) => { if (e.target.value) setCron(e.target.value); }} className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200">
-              {CRON_PRESETS.map((p) => <option key={p.label} value={p.expr}>{p.label}</option>)}
-            </select>
-            <input value={cron} onChange={(e) => setCron(e.target.value)} placeholder="0 9 * * *" className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 font-mono" />
+          <>
             {err && <p className="text-red-400 text-xs">{err}</p>}
-            <div className="flex gap-2">
-              <button disabled={busy} onClick={() => create('cron')} className="px-2 py-1 rounded bg-lucy-600 text-white text-xs disabled:opacity-50">Add schedule</button>
-              <button onClick={() => setAdding(null)} className="px-2 py-1 text-gray-400 text-xs">Cancel</button>
-            </div>
-          </div>
+            <ScheduleBuilder busy={busy} onCancel={() => setAdding(null)} onAdd={createSchedule} />
+          </>
         )}
 
         {adding === 'record' && (
