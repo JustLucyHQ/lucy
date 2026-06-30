@@ -19,7 +19,7 @@ import {
 import { useSettingsStore } from '@/lib/store/settings';
 import { useChatStore } from '@/lib/store/chat';
 import { useStorage, useStorageMode } from '@/lib/storage/provider';
-import { markOnboarded } from '@/lib/onboarding';
+import { isOnboarded, markOnboarded } from '@/lib/onboarding';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { LucyMark } from '@/components/brand/LucyMark';
@@ -463,6 +463,12 @@ export function OnboardingWizard() {
   const standalone = useStorageMode() === 'local';
   const [step, setStep] = useState<Step>(1);
   const [companyName, setCompanyName] = useState('');
+
+  // Returning users (already set up) skip the wizard — the root sends everyone to
+  // /onboarding, so this is what routes a set-up user straight on to chat.
+  useEffect(() => {
+    if (isOnboarded()) router.replace('/chat');
+  }, [router]);
 
   // Pre-fill from saved preferences so onboarding doesn't re-ask what's already set.
   useEffect(() => {
