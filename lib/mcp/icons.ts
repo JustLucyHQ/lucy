@@ -43,6 +43,12 @@ const DOMAIN: Record<string, string> = {
   redis: 'redis.io',
   mongodb: 'mongodb.com',
   'contractors-room': 'contractorsroom.com',
+  'twenty-crm': 'twenty.com',
+  clickup: 'clickup.com',
+  shopify: 'shopify.com',
+  dropbox: 'dropbox.com',
+  reddit: 'reddit.com',
+  facebook: 'facebook.com',
 };
 
 /** Favicon URL for a connector's real app logo, or null to fall back to the emoji. */
