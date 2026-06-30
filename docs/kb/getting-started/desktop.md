@@ -18,14 +18,22 @@ A fresh desktop install runs in **standalone mode**: no account, no Supabase. Yo
 
 ## First run
 
-On first launch Lucy opens a quick **setup wizard**:
+On first launch the desktop app goes **straight to the setup wizard** — it never shows the marketing/landing page (in standalone mode the app redirects the root to onboarding). The wizard:
 
-1. Choose how to power Lucy — paste a cloud API key (OpenAI, Claude, Gemini, …) **or** point at a local Ollama / LM Studio model.
-2. That's it — start chatting. Subsequent launches go straight to chat.
+1. **Welcome** — optional name / workspace.
+2. **Power Lucy** — paste a cloud API key (OpenAI, Claude, Gemini, …) **or** point at a local Ollama / LM Studio model. Keys are stored locally in your browser storage, never sent to our servers.
+3. **Test chat** — open the chat and send your first message.
 
-## Connect to Cloud (optional)
+Subsequent launches skip the wizard and go straight to chat (a one-time `lucy.onboarded` flag).
 
-If you also use Lucy on the web (a justlucy.ai or self-hosted account), push your local chats and settings up from **Settings → General → Cloud**. The sync is **one-way and idempotent** — re-syncing updates records in place rather than duplicating them. Provider-key sync is an opt-in checkbox (off by default).
+## Cloud / live version
+
+The desktop app is **standalone-only for now** — there is **no in-app account sign-in or API-key login** that points the desktop at the live cloud backend. What exists today:
+
+- **One-way push sync** (optional): if you also use Lucy on the web (a justlucy.ai or self-hosted account), push your local chats and settings *up* from **Settings → General → Cloud**. The sync is **one-way and idempotent** — re-syncing updates records in place rather than duplicating them. Provider-key sync is an opt-in checkbox (off by default).
+- **Use Lucy on the web**: the onboarding's finish step links out to [justlucy.ai](https://justlucy.ai) (opens in your browser) for the full account-backed web app.
+
+> **Not yet (under consideration):** signing in to your Lucy account *inside* the desktop app, or pasting a Lucy API key to use the live cloud backend (memory / sync) from the desktop. If we add it, the leaning is a **hybrid build** — ship the (public) Supabase config in the desktop and make storage mode runtime-switchable: local by default, connected once you sign in. **Deferred** — the desktop stays purely local for now.
 
 ## Build the installers yourself
 

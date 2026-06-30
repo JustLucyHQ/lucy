@@ -47,6 +47,7 @@ Lucy is **live and usable** end-to-end on the web: auth, chat (multi-provider + 
 - 🟡 New-widget model default already provider-aware; consider same for Telegram/embed when no key exists. *(S)*
 
 ### P3 — Future / v2
+- ⛔ **Desktop ↔ cloud sign-in (deferred 2026-06-30).** The Electron app is **standalone-only by decision** — no in-app account sign-in or API-key login to the live backend. Onboarding routes the root straight to the wizard (never the marketing landing). If revisited, leaning a **hybrid build**: ship the public Supabase config in the desktop + make storage mode runtime-switchable (local by default, connected on sign-in). *(M–L)*
 - ⛔ **Workflow engine v2:** iterator/loops, human-input form, long delay — all need run **suspend/resume** (engine currently runs start→finish in one pass). *(L)*
 - ⛔ Embed: RAG over real project data (currently persona + FAQ only). *(L)*
 - 🟡 Workflows: multi-instance worker leasing (boot reaper assumes a single process — fine for one pm2 instance, revisit before scaling). *(M)*
