@@ -18,6 +18,13 @@ files:
 extraResources:
   - from: .next/standalone
     to: standalone
+  # electron-builder strips `node_modules` out of a directory tree it copies as a
+  # resource, which left the packaged server unable to `require('next')`. Pointing
+  # `from` directly at node_modules copies its package contents verbatim.
+  - from: .next/standalone/node_modules
+    to: standalone/node_modules
+    filter:
+      - '**/*'
 
 win:
   target:
