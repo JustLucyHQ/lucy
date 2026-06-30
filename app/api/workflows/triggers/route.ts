@@ -43,7 +43,12 @@ export async function POST(req: NextRequest) {
     enabled: true,
   };
   if (v.type === 'cron') {
-    row.next_run_at = nextRunAfter(String(v.settings.expr), new Date())?.toISOString() ?? null;
+    if (v.settings.run_once) {
+      row.next_run_at = new Date(String(v.settings.run_at)).toISOString();
+    } else {
+      const tz = typeof v.settings.timezone === 'string' ? v.settings.timezone : undefined;
+      row.next_run_at = nextRunAfter(String(v.settings.expr), new Date(), tz)?.toISOString() ?? null;
+    }
   }
   if (v.type === 'webhook') {
     row.secret = randomBytes(24).toString('base64url');
