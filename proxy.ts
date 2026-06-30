@@ -15,7 +15,6 @@ const PUBLIC_PREFIXES = [
   '/onboarding',
   '/api/',
   '/embed',
-  '/personas',
   '/_next/',
   '/favicon',
 ];
@@ -42,7 +41,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Only protect app routes
-  const protectedPrefixes = ['/chat', '/workflows', '/settings', '/account'];
+  const protectedPrefixes = ['/chat', '/workflows', '/settings', '/account', '/connectors', '/widgets', '/personas', '/admin'];
   const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
 
   if (!isProtected) {
