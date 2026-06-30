@@ -1,6 +1,7 @@
 // Electron main process — boots Lucy's bundled Next standalone server on a
-// local port and loads it in a window. Local-first by default; "Connect to
-// Cloud" navigates to justlucy.ai.
+// local port and loads it in a window. STANDALONE / local-only: the window only
+// ever shows the bundled local server. It never loads the live justlucy.ai site
+// in-window (that would defeat local-first); "Open on the web" opens the browser.
 const { app, BrowserWindow, Menu, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -31,6 +32,27 @@ const SPLASH_URL =
       `@keyframes p{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.9);opacity:.65}}` +
       `</style></head><body><div class="w"><div class="logo"></div>` +
       `<div class="n"><b>Just</b> Lucy</div><div class="s">Starting up…</div></div></body></html>`
+  );
+
+// Shown if the bundled local server can't start. We do NOT fall back to the
+// cloud site — a standalone app must stay local — so surface the failure and let
+// the user reopen the app (which retries the server boot).
+const ERROR_URL =
+  'data:text/html;charset=utf-8,' +
+  encodeURIComponent(
+    `<!doctype html><html><head><meta charset="utf-8"><style>` +
+      `*{margin:0;box-sizing:border-box}html,body{height:100%}` +
+      `body{background:#0c0a16;display:flex;align-items:center;justify-content:center;` +
+      `font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#fff;padding:24px}` +
+      `.w{text-align:center;max-width:420px}` +
+      `.logo{width:56px;height:56px;border-radius:16px;margin:0 auto 18px;` +
+      `background:linear-gradient(135deg,#a78bfa,#7c3aed)}` +
+      `h1{font-size:19px;font-weight:800;margin-bottom:10px}` +
+      `p{font-size:13px;color:#9ca3af;line-height:1.5}` +
+      `</style></head><body><div class="w"><div class="logo"></div>` +
+      `<h1>Lucy couldn’t start its local engine</h1>` +
+      `<p>The bundled local server didn’t start. Please quit and reopen Lucy. ` +
+      `If it keeps happening, reinstall the latest version.</p></div></body></html>`
   );
 
 let serverProcess = null;
@@ -107,8 +129,10 @@ function buildMenu() {
           click: () => localUrl && mainWindow && mainWindow.loadURL(localUrl + HOME_PATH),
         },
         {
-          label: 'Connect to Cloud (justlucy.ai)',
-          click: () => mainWindow && mainWindow.loadURL(CLOUD_URL + HOME_PATH),
+          label: 'Open Lucy on the web (justlucy.ai)',
+          // Opens in the OS browser — never loads the live site inside this
+          // standalone window.
+          click: () => shell.openExternal(CLOUD_URL),
         },
         { type: 'separator' },
         { role: 'reload' },
@@ -169,13 +193,15 @@ async function createWindow() {
   try {
     localUrl = await startLocalServer();
   } catch (err) {
-    console.error('[lucy-desktop] local server failed, falling back to cloud:', err.message);
+    console.error('[lucy-desktop] local server failed to start:', err.message);
     localUrl = null;
   }
   buildMenu(); // refresh so the "Local (offline)" menu item reflects availability
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.loadURL((localUrl || CLOUD_URL) + HOME_PATH);
+    // Local-only: load the bundled server, or an error page if it didn't boot.
+    // NEVER fall back to the live cloud site — that would break standalone.
+    mainWindow.loadURL(localUrl ? localUrl + HOME_PATH : ERROR_URL);
   }
 }
 
