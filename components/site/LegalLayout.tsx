@@ -37,8 +37,8 @@ export function LegalLayout({
         </article>
         <p className="mt-12 text-sm text-gray-500">
           Questions? Contact us at{' '}
-          <a href="mailto:contact@justlucy.ai" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-            contact@justlucy.ai
+          <a href="mailto:support@justlucy.ai" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
+            support@justlucy.ai
           </a>
           .
         </p>
