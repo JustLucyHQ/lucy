@@ -58,6 +58,7 @@ export async function processRecordEvents(client: SupabaseClient, limit = 100): 
   // Events whose enqueue hit a *transient* (non-dedupe) error are kept so the
   // next tick retries them; idempotency keys make re-processing safe.
   const keepEventIds = new Set<string>();
+  const firedTriggerIds = new Set<string>();
   for (const ev of events as EventRow[]) {
     const recordUserId = (ev.record as { user_id?: string } | null)?.user_id;
     for (const t of recTriggers) {
@@ -87,7 +88,7 @@ export async function processRecordEvents(client: SupabaseClient, limit = 100): 
         // distinct triggers on the same event each get their own run.
         idempotency_key: `evt:${ev.id}:${t.id}`,
       });
-      if (!insErr) enqueued++;
+      if (!insErr) { enqueued++; firedTriggerIds.add(t.id); }
       else if ((insErr as { code?: string }).code !== '23505') keepEventIds.add(ev.id);
     }
   }
@@ -96,5 +97,9 @@ export async function processRecordEvents(client: SupabaseClient, limit = 100): 
   // hit a transient enqueue error so the next tick retries them.
   const toDelete = (events as EventRow[]).map((e) => e.id).filter((id) => !keepEventIds.has(id));
   if (toDelete.length) await client.from('workflow_events').delete().in('id', toDelete);
+  // Surface "last fired" per trigger (observability).
+  if (firedTriggerIds.size) {
+    await client.from('workflow_triggers').update({ last_enqueued_at: new Date().toISOString() }).in('id', Array.from(firedTriggerIds));
+  }
   return enqueued;
 }
