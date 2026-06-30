@@ -266,7 +266,7 @@ Arrow keys + **Enter/Tab** to apply, **Esc** to dismiss. Arg-commands prime the 
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/idubravac/LucyAI.git
+git clone https://github.com/JustLucyHQ/lucy.git
 cd LucyAI
 
 # 2. Install dependencies

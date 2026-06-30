@@ -3,7 +3,7 @@
 ## Run locally (5 minutes)
 
 ```bash
-git clone https://github.com/idubravac/LucyAI.git
+git clone https://github.com/JustLucyHQ/lucy.git
 cd LucyAI
 npm install
 npm run dev

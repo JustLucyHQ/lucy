@@ -10,7 +10,7 @@ export const TAGLINE = 'Your AI, every provider, one platform.';
 export const SUBLINE =
   'OpenAI, Claude, Gemini, or local models on your own machine — switch mid-chat. Lucy remembers what matters and plugs into your tools, with your keys encrypted and yours.';
 
-export const GITHUB_URL = 'https://github.com/idubravac/LucyAI';
+export const GITHUB_URL = 'https://github.com/JustLucyHQ/lucy';
 
 export const PROVIDERS = [
   'OpenAI', 'Claude', 'Gemini', 'Ollama', 'Mistral', 'Groq', 'DeepSeek',

@@ -1,11 +1,11 @@
 # Contributing
 
-Lucy is open source — issues and pull requests welcome at [github.com/idubravac/LucyAI](https://github.com/idubravac/LucyAI).
+Lucy is open source — issues and pull requests welcome at [github.com/JustLucyHQ/lucy](https://github.com/JustLucyHQ/lucy).
 
 ## Development setup
 
 ```bash
-git clone https://github.com/idubravac/LucyAI.git
+git clone https://github.com/JustLucyHQ/lucy.git
 cd LucyAI
 npm install
 npm run dev          # http://localhost:3001
