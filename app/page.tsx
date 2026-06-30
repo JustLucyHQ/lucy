@@ -19,6 +19,15 @@ export default async function HomePage({
 }: {
   searchParams: Promise<{ v?: string }>;
 }) {
+  // Defense in depth: the landing is a connected/web-only surface. In standalone
+  // (no Supabase) proxy.ts already redirects the root to /onboarding before this
+  // renders — but never render the marketing page here either, so it can't show
+  // even if the middleware is ever bypassed.
+  const supabaseEnabled = Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+  if (!supabaseEnabled) return null;
+
   const { v } = await searchParams;
   if (v === 'corporate') return <LandingCorporate />;
   return <LandingModern />;
