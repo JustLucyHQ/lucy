@@ -37,8 +37,14 @@ export function validateTriggerBody(body: unknown): TriggerValidateResult {
 
   const settings = (b?.settings && typeof b.settings === 'object' ? b.settings : {}) as Record<string, unknown>;
   if (type === 'cron') {
-    const expr = typeof settings.expr === 'string' ? settings.expr : '';
-    if (!isValidCron(expr)) return { ok: false, status: 400, error: 'Invalid cron expression' };
+    if (settings.run_once) {
+      // One-time schedule: a single future instant instead of a recurring cron.
+      const at = typeof settings.run_at === 'string' ? Date.parse(settings.run_at) : NaN;
+      if (!Number.isFinite(at)) return { ok: false, status: 400, error: 'run_at must be a valid date/time' };
+    } else {
+      const expr = typeof settings.expr === 'string' ? settings.expr : '';
+      if (!isValidCron(expr)) return { ok: false, status: 400, error: 'Invalid cron expression' };
+    }
   }
   if (type === 'record_event') {
     const table = settings.table;
