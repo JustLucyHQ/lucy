@@ -15,6 +15,7 @@ import { getModelById } from '@/lib/providers';
 import { parseSSEStream } from '@/lib/utils/stream';
 import { generateConversationTitle } from '@/lib/utils/markdown';
 import { getSupabaseClient, isSupabaseEnabled } from '@/lib/supabase/client';
+import { getLocalInstalls } from '@/lib/mcp/local-installs';
 import { isOnboarded } from '@/lib/onboarding';
 import { useMemoryStore } from '@/lib/store/memory';
 import { parseSlashCommand, SLASH_COMMANDS } from '@/lib/chat/slash-commands';
@@ -274,6 +275,8 @@ export default function ChatPage() {
             provider: selectedProvider,
             ...(systemPrompt ? { systemPrompt } : {}),
             ...(memoryUserId ? { userId: memoryUserId } : {}),
+            // Standalone: pass localStorage connector installs so their tools can run server-side.
+            ...(!isSupabaseEnabled() ? { mcpInstalls: getLocalInstalls() } : {}),
           }),
           signal: controller.signal,
         });
