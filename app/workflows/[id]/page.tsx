@@ -346,9 +346,9 @@ export default function WorkflowEditorPage() {
         <WorkflowToolbar
           onSave={handleSave}
           onRun={handleRunClick}
-          onShowRuns={() => setShowRuns((v) => !v)}
-          onShowTriggers={() => setShowTriggers((v) => !v)}
-          onShowVersions={() => setShowVersions((v) => !v)}
+          onShowRuns={() => { setShowRuns((v) => !v); setShowTriggers(false); setShowVersions(false); }}
+          onShowTriggers={() => { setShowTriggers((v) => !v); setShowRuns(false); setShowVersions(false); }}
+          onShowVersions={() => { setShowVersions((v) => !v); setShowRuns(false); setShowTriggers(false); }}
           isSaving={isSaving}
           saveError={saveError}
         />
