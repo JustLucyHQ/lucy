@@ -19,7 +19,7 @@ export default function PrivacyPage() {
       <h2>Who we are</h2>
       <p>
         The Service is operated by JustLucy. For privacy questions, contact us at{' '}
-        <a href="mailto:contact@justlucy.ai">contact@justlucy.ai</a>. For users in the EEA/UK,
+        <a href="mailto:support@justlucy.ai">support@justlucy.ai</a>. For users in the EEA/UK,
         JustLucy is the data controller for the personal data described below.
       </p>
 
@@ -123,7 +123,7 @@ export default function PrivacyPage() {
         delete your personal data, and to object to certain processing. EEA/UK users have these rights
         under the GDPR; California residents have rights under the CCPA/CPRA, including the right to
         know and to delete and the right not to be discriminated against for exercising them. To
-        exercise any right, contact <a href="mailto:contact@justlucy.ai">contact@justlucy.ai</a>.
+        exercise any right, contact <a href="mailto:support@justlucy.ai">support@justlucy.ai</a>.
       </p>
 
       <h2>International transfers</h2>
