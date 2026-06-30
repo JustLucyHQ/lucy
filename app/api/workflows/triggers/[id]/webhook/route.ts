@@ -1,6 +1,7 @@
 // app/api/workflows/triggers/[id]/webhook/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { checkRateLimit, getClientIp } from '@/lib/api/rate-limit';
 
 export const runtime = 'nodejs';
@@ -9,9 +10,16 @@ export const dynamic = 'force-dynamic';
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type, x-webhook-token',
+  'Access-Control-Allow-Headers': 'content-type, x-webhook-token, x-signature, x-timestamp, idempotency-key',
   'Access-Control-Max-Age': '86400',
 };
+
+/** Constant-time string compare (avoids leaking the secret via timing). */
+function safeEq(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
 const json = (b: unknown, status = 200) => NextResponse.json(b, { status, headers: CORS });
 
 function service() {
@@ -39,12 +47,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq('id', id)
     .single();
 
+  const raw = await req.text();
+  const secret = (trigger?.secret as string) || '';
+  // Accept EITHER the shared token (query or header) OR an HMAC-SHA256 signature of the
+  // raw body (x-signature: sha256=<hex>) — so signed providers can verify without a URL token.
   const token = req.nextUrl.searchParams.get('token') || req.headers.get('x-webhook-token') || '';
-  if (!trigger || trigger.type !== 'webhook' || !trigger.enabled || !trigger.secret || token !== trigger.secret) {
+  const sig = (req.headers.get('x-signature') || '').replace(/^sha256=/i, '');
+  const okToken = !!secret && !!token && safeEq(token, secret);
+  const okHmac = !!secret && !!sig && safeEq(sig, createHmac('sha256', secret).update(raw).digest('hex'));
+  if (!trigger || trigger.type !== 'webhook' || !trigger.enabled || !secret || !(okToken || okHmac)) {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  // Optional replay protection: when a signed caller supplies x-timestamp, reject stale requests.
+  const ts = req.headers.get('x-timestamp');
+  if (ts) {
+    const age = Math.abs(Date.now() - Number(ts));
+    if (!Number.isFinite(age) || age > 5 * 60 * 1000) return json({ error: 'Stale request' }, 401);
+  }
+
+  let body: Record<string, unknown> = {};
+  try {
+    body = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    body = {};
+  }
   const inputs = { ...(trigger.inputs as Record<string, unknown>), ...(body && typeof body === 'object' ? body : {}) };
 
   // Optional caller-supplied idempotency key dedupes retried deliveries.
@@ -72,5 +99,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     return json({ error: 'Could not enqueue' }, 500);
   }
+  void svc.from('workflow_triggers').update({ last_enqueued_at: new Date().toISOString() }).eq('id', id).then(() => {});
   return json({ runId: data.id });
 }

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { X, Clock, Webhook, Database, Trash2, Plus, Copy } from 'lucide-react';
+import { X, Clock, Webhook, Database, Trash2, Plus, Copy, Play } from 'lucide-react';
 
 const CRON_PRESETS: { label: string; expr: string }[] = [
   { label: 'Every hour', expr: '0 * * * *' },
@@ -21,7 +21,7 @@ const EVENT_OPS: { op: string; label: string }[] = [
 interface Trigger {
   id: string; name: string; type: 'cron' | 'webhook' | 'record_event';
   settings: { expr?: string; table?: string; events?: string[]; when?: { field: string; to?: unknown; changed?: boolean } };
-  enabled: boolean; secret: string | null; next_run_at: string | null;
+  enabled: boolean; secret: string | null; next_run_at: string | null; last_enqueued_at?: string | null;
 }
 
 interface Props {
@@ -80,6 +80,13 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
     await fetch(`/api/workflows/triggers/${t.id}`, { method: 'DELETE' });
     load();
   };
+  const runNow = async (t: Trigger) => {
+    setBusy(true);
+    try {
+      await fetch(`/api/workflows/triggers/${t.id}/run`, { method: 'POST' });
+      await load();
+    } finally { setBusy(false); }
+  };
 
   const webhookUrl = (t: Trigger) => {
     const base = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
@@ -107,15 +114,22 @@ export function TriggersPanel({ workflowId, definition, onClose }: Props) {
                   : t.type === 'webhook' ? 'webhook'
                   : `${t.settings?.table} ${(t.settings?.events ?? []).join('/')}${t.settings?.when ? ` · when ${t.settings.when.field} changes` : ''}`}
               </span>
+              <button onClick={() => runNow(t)} disabled={busy} title="Run now (test fire)" className="text-gray-500 hover:text-lucy-300 disabled:opacity-50"><Play className="w-3.5 h-3.5" /></button>
               <button onClick={() => toggle(t)} className={t.enabled ? 'text-emerald-400' : 'text-gray-500'}>{t.enabled ? 'on' : 'off'}</button>
               <button onClick={() => remove(t)} className="text-gray-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
             </div>
             {t.type === 'webhook' && (
-              <button onClick={() => navigator.clipboard.writeText(webhookUrl(t))} className="flex items-center gap-1 text-lucy-400 hover:text-lucy-300">
-                <Copy className="w-3 h-3" /> Copy webhook URL
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => navigator.clipboard.writeText(webhookUrl(t))} className="flex items-center gap-1 text-lucy-400 hover:text-lucy-300">
+                  <Copy className="w-3 h-3" /> Copy URL
+                </button>
+                <button onClick={() => navigator.clipboard.writeText(t.secret ?? '')} className="flex items-center gap-1 text-gray-400 hover:text-gray-200" title="HMAC-SHA256 signing secret — send as x-signature: sha256=<hmac>">
+                  <Copy className="w-3 h-3" /> Copy secret
+                </button>
+              </div>
             )}
             {t.type === 'cron' && t.next_run_at && <p className="text-gray-600">next: {new Date(t.next_run_at).toLocaleString()}</p>}
+            {t.last_enqueued_at && <p className="text-gray-600">last fired: {new Date(t.last_enqueued_at).toLocaleString()}</p>}
           </div>
         ))}
 

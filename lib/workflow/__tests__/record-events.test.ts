@@ -9,8 +9,8 @@ function fakeClient(events: unknown[], triggers: unknown[], rec: Rec) {
       eq: () => chain,
       order: () => chain,
       limit: () => chain,
-      delete: () => chain,
-      in: async (_col: string, ids: string[]) => { rec.deletedIds.push(...ids); return { error: null }; },
+      delete: () => ({ in: async (_col: string, ids: string[]) => { rec.deletedIds.push(...ids); return { error: null }; } }),
+      update: () => ({ in: async () => ({ error: null }) }), // last_enqueued_at bump — no-op here
       insert: async (row: Record<string, unknown>) => { rec.inserts.push(row); return { error: null }; },
       then: (res: (v: { data: unknown; error: null }) => void) => res({ data: resolveData, error: null }),
     };
