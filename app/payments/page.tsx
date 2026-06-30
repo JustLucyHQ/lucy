@@ -49,14 +49,14 @@ export default function PaymentsPage() {
       <h2>Refunds</h2>
       <p>
         If you are not satisfied, contact us at{' '}
-        <a href="mailto:contact@justlucy.ai">contact@justlucy.ai</a> within 7 days of a charge and we
+        <a href="mailto:support@justlucy.ai">support@justlucy.ai</a> within 7 days of a charge and we
         will review your request for a refund. Refunds are issued to the original payment method.
       </p>
 
       <h2>Questions</h2>
       <p>
         For any billing question, reach us at{' '}
-        <a href="mailto:contact@justlucy.ai">contact@justlucy.ai</a>.
+        <a href="mailto:support@justlucy.ai">support@justlucy.ai</a>.
       </p>
     </LegalLayout>
   );
