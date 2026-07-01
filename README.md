@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind CSS 3" />
   <img src="https://img.shields.io/badge/Supabase-optional-3ECF8E?style=flat-square&logo=supabase" alt="Supabase" />
   <img src="https://img.shields.io/badge/tests-282_passing-brightgreen?style=flat-square" alt="282 tests passing" />
-  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="MIT License" />
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0 License" />
 </p>
 
 Lucy runs OpenAI, Claude, Gemini, and local models like Ollama in one interface that remembers your work, connects to your tools, and keeps your keys on your machine.
@@ -972,4 +972,4 @@ Lucy and Contractors Room share the same local Docker Supabase instance:
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+GNU Affero General Public License v3.0 (AGPL-3.0) — see [LICENSE](LICENSE) for details.
