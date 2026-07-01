@@ -31,6 +31,8 @@ export interface CatalogServer {
   slug: string; name: string; description: string; author?: string; category: Category;
   icon?: string; transport: Transport; install_ref?: string;
   config_schema: ConfigField[]; tools: ToolInfo[]; verified?: boolean; built_in?: boolean;
+  /** Only shown to admins (e.g. customer-specific connectors like Contractors Room). */
+  adminOnly?: boolean;
   meta?: ConnectorMeta;
 }
 export interface Installation {

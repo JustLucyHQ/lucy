@@ -13,6 +13,8 @@ export interface WorkflowTemplate {
   description: string;
   icon: string;
   workflow: Omit<Workflow, 'id' | 'createdAt' | 'updatedAt'>;
+  /** Only shown to admins (e.g. customer-specific templates like Contractors Room). */
+  adminOnly?: boolean;
 }
 
 // ─── Builders for the richer multi-node templates below ─────────────────────
@@ -244,6 +246,39 @@ const COMPLEX_TEMPLATES: WorkflowTemplate[] = [
       mkEdge('cond', 'tL', 'false'), mkEdge('tL', 'rL'), mkEdge('rL', 'oL'),
     ],
   ),
+
+  // 8 ── Recipe Idea Generator: search a free recipe API → AI write-up ───────
+  tpl(
+    {
+      id: 'recipe-idea',
+      name: 'Recipe Idea Generator',
+      description: 'Search TheMealDB for a recipe matching an ingredient or dish, and have Lucy write it up clearly.',
+      icon: '🍳',
+    },
+    [
+      mkNode({ id: 'start', type: 'start', label: 'Ingredient / Dish', x: 60, y: 180, config: { inputVariables: [{ name: 'query', description: 'Ingredient or dish to search (e.g. chicken, pasta, dessert)', defaultValue: 'chicken' }] } }),
+      mkNode({ id: 'search', type: 'http', label: 'Search Recipes', x: 320, y: 180, config: httpGet('https://www.themealdb.com/api/json/v1/1/search.php?s={{query}}') }),
+      mkNode({ id: 'recipe', type: 'llm', label: 'Write Recipe', x: 580, y: 180, config: ai('You are a helpful cooking assistant. From the raw recipe API data in the input, pick the best matching recipe and present it clearly with: **Name**, **Ingredients** (bulleted with quantities), **Instructions** (numbered steps), and a **Tip**. If multiple recipes were returned, pick the most relevant one to the query.', '', 900) }),
+      mkNode({ id: 'out', type: 'output', label: 'Recipe', x: 840, y: 180, config: outCfg('Recipe') }),
+    ],
+    [mkEdge('start', 'search'), mkEdge('search', 'recipe'), mkEdge('recipe', 'out')],
+  ),
+
+  // 9 ── Meeting Notes → Action Items: pure input → AI extraction (no API) ───
+  tpl(
+    {
+      id: 'meeting-action-items',
+      name: 'Meeting Notes → Action Items',
+      description: 'Paste raw meeting notes and have Lucy pull out decisions, action items, and open questions.',
+      icon: '📝',
+    },
+    [
+      mkNode({ id: 'start', type: 'start', label: 'Meeting Notes', x: 60, y: 180, config: { inputVariables: [{ name: 'notes', description: 'Paste your meeting notes or transcript', defaultValue: 'We discussed the Q3 roadmap. Sarah will finalize the budget by Friday. Mike is blocked on the API integration and needs design review. Next sync is Thursday.' }] } }),
+      mkNode({ id: 'extract', type: 'llm', label: 'Extract Action Items', x: 320, y: 180, config: ai('You are an executive assistant. From the meeting notes in the input, extract: **Decisions made** (bullets), **Action items** (bullets, each with an owner if mentioned and a deadline if mentioned), and **Open questions / blockers**. Be concise and only include what is actually stated — do not invent names or dates.', 'notes', 700) }),
+      mkNode({ id: 'out', type: 'output', label: 'Action Items', x: 580, y: 180, config: outCfg('Action Items') }),
+    ],
+    [mkEdge('start', 'extract'), mkEdge('extract', 'out')],
+  ),
 ];
 
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
@@ -252,6 +287,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     name: 'CTR Admin Report',
     description: 'Generate admin reports for Contractors Room — invoices, disputes, contractor stats, and platform metrics',
     icon: '🏗️',
+    adminOnly: true,
     workflow: {
       name: 'CTR Admin Report',
       description: 'Analyse Contractors Room data and generate admin reports',
@@ -434,6 +470,7 @@ Format your response with clear sections, counts, and any items needing attentio
     name: 'CTR Contractor Screener',
     description: 'Review a contractor profile and generate a suitability assessment for a project',
     icon: '👤',
+    adminOnly: true,
     workflow: {
       name: 'CTR Contractor Screener',
       description: 'Assess contractor suitability for a specific project',

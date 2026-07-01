@@ -13,6 +13,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { getWorkflowStorage } from '@/lib/workflow/storage';
 import { WORKFLOW_TEMPLATES } from '@/lib/workflow/templates';
 import { buildExampleWorkflows } from '@/lib/workflow/examples';
+import { useIsAdmin } from '@/lib/hooks/useIsAdmin';
 import type { Workflow } from '@/lib/workflow/types';
 
 /** Build a fresh Workflow instance from a template (timestamps assigned here). */
@@ -37,6 +38,12 @@ export default function WorkflowsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const router = useRouter();
+  const isAdmin = useIsAdmin();
+  // Admin-only templates (e.g. Contractors Room) stay hidden from regular users.
+  const visibleTemplates = React.useMemo(
+    () => WORKFLOW_TEMPLATES.filter((t) => !t.adminOnly || isAdmin),
+    [isAdmin],
+  );
 
   // Durable Supabase storage when connected + authed, else localStorage.
   const storage = React.useMemo(() => getWorkflowStorage(), []);
@@ -160,14 +167,14 @@ export default function WorkflowsPage() {
                 </div>
               </div>
 
-              {WORKFLOW_TEMPLATES.length > 0 && (
+              {visibleTemplates.length > 0 && (
                 <div>
                   <h3 className="text-gray-300 font-semibold text-sm mb-4 flex items-center gap-2">
                     <BookTemplate className="w-4 h-4 text-gray-500" />
                     Templates
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {WORKFLOW_TEMPLATES.map((tmpl) => (
+                    {visibleTemplates.map((tmpl) => (
                       <button
                         key={tmpl.id}
                         onClick={() => handleUseTemplate(tmpl.id)}
@@ -251,14 +258,14 @@ export default function WorkflowsPage() {
               </button>
             </div>
 
-            {WORKFLOW_TEMPLATES.length > 0 && (
+            {visibleTemplates.length > 0 && (
               <div className="mt-10">
                 <h3 className="text-gray-400 font-semibold text-xs uppercase tracking-wider mb-3 flex items-center gap-2">
                   <BookTemplate className="w-3.5 h-3.5" />
                   Templates
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {WORKFLOW_TEMPLATES.map((tmpl) => (
+                  {visibleTemplates.map((tmpl) => (
                     <button
                       key={tmpl.id}
                       onClick={() => handleUseTemplate(tmpl.id)}
