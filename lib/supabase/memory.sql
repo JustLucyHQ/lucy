@@ -119,6 +119,11 @@ create table if not exists memory_settings (
 );
 insert into memory_settings (id) values (1) on conflict (id) do nothing;
 alter table memory_settings enable row level security;
-create policy "read settings" on memory_settings for select using (true);
+-- Service-role-only: embedder_api_key is a live secret and every legitimate
+-- read already goes through a service-role client (see app/api/memory/settings/
+-- route.ts) — a using(true) policy here was a critical unauthenticated-read hole.
+create policy "service reads settings" on memory_settings
+  for select using (auth.role() = 'service_role');
 create policy "service writes settings" on memory_settings
   for all using (auth.role() = 'service_role');
+revoke select on memory_settings from anon, authenticated;
