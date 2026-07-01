@@ -21,6 +21,26 @@ export interface ConnectOpts {
   bearerToken?: string;
 }
 
+// A spawned stdio MCP child must NOT inherit the app's own secrets (the
+// service-role key, provider keys, etc. would otherwise sit in the env of
+// arbitrary third-party npm code run via `npx -y <pkg>`). Only pass through
+// what's actually needed to resolve/run node & npx cross-platform; the user's
+// own connector config is layered on top and always wins.
+const SPAWN_ENV_ALLOWLIST = [
+  'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP',
+  'SystemRoot', 'windir', 'APPDATA', 'LOCALAPPDATA', 'COMSPEC', 'PATHEXT',
+  'HOMEDRIVE', 'HOMEPATH', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE',
+  'LANG', 'LC_ALL', 'NODE_PATH',
+];
+function minimalSpawnEnv(config: Record<string, string>): Record<string, string> {
+  const base: Record<string, string> = {};
+  for (const key of SPAWN_ENV_ALLOWLIST) {
+    const v = process.env[key];
+    if (v !== undefined) base[key] = v;
+  }
+  return { ...base, ...config };
+}
+
 export async function connect(
   server: CatalogServer,
   config: Record<string, string>,
@@ -39,7 +59,7 @@ export async function connect(
     transport = new StdioClientTransport({
       command: cmd,
       args,
-      env: { ...Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined) as [string, string][]), ...config },
+      env: minimalSpawnEnv(config),
     });
   } else {
     // http or sse transport — StreamableHTTPClientTransport handles both.
