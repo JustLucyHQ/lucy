@@ -1633,6 +1633,7 @@ export const CATALOG: CatalogServer[] = [
     icon: '🏗️',
     transport: 'http',
     built_in: true,
+    adminOnly: true,
     verified: true,
     config_schema: [],
     tools: [
