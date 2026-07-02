@@ -30,6 +30,7 @@ import type {
 import { getProvider, getModelsByProvider } from '@/lib/providers';
 import { executeAction } from '@/lib/integrations/actions';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { isPrivateHost } from '@/lib/security/ssrf-guard';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /** Thrown by the engine when a run is canceled mid-execution. */
@@ -376,15 +377,6 @@ export class WorkflowEngine {
     }
   }
 
-  /** True for loopback / link-local / RFC-1918 / .local|.internal hosts. */
-  private static isPrivateHost(host: string): boolean {
-    const h = host.replace(/^\[|\]$/g, '').toLowerCase();
-    if (!h || h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal')) return true;
-    if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.|::1$)/.test(h)) return true;
-    const m = h.match(/^172\.(\d{1,3})\./);
-    return m ? Number(m[1]) >= 16 && Number(m[1]) <= 31 : false;
-  }
-
   /** SSRF guard for the HTTP node. Only enforced in multi-tenant mode
    *  (WORKFLOW_MULTI_TENANT=1) so single-tenant self-hosters keep full access
    *  (e.g. calling their own localhost services). */
@@ -393,7 +385,7 @@ export class WorkflowEngine {
     let u: URL;
     try { u = new URL(raw); } catch { throw new Error('HTTP node: invalid URL'); }
     if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('HTTP node: only http(s) URLs are allowed');
-    if (WorkflowEngine.isPrivateHost(u.hostname)) throw new Error('HTTP node: refusing to fetch a private/internal address');
+    if (isPrivateHost(u.hostname)) throw new Error('HTTP node: refusing to fetch a private/internal address');
   }
 
   private async runHttp(node: WorkflowNode, context: ExecutionContext): Promise<string> {

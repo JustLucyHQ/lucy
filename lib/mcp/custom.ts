@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { encryptSecret, decryptSecret } from './secret';
 import { connect, type McpConn } from './client';
 import type { CatalogServer } from './types';
+import { assertPublicHttpUrl } from '@/lib/security/ssrf-guard';
 
 function svc() {
   return createClient(
@@ -38,6 +39,9 @@ export async function createCustom(
   url: string,
   token?: string | null,
 ): Promise<CustomConnector> {
+  // A custom connector is a server-side fetch target any authenticated user can
+  // register — no legitimate reason for it to point at internal infra.
+  assertPublicHttpUrl(url, 'custom connector');
   const { data, error } = await svc()
     .from('custom_connectors')
     .insert({ user_id: userId, slug: makeSlug(name), name, url, token_enc: token ? encryptSecret(token) : null })
@@ -85,6 +89,9 @@ export function customToServer(c: CustomConnector): CatalogServer {
 
 /** Connect to a custom remote MCP (bearer token if one was saved, else open). */
 export async function connectCustom(c: CustomConnector): Promise<McpConn> {
+  // Re-check at connection time, not just registration — a hostname that
+  // resolved to a public IP when registered can rebind to a private one later.
+  assertPublicHttpUrl(c.url, 'custom connector');
   const token = c.token_enc ? decryptSecret(c.token_enc) : null;
   return connect(customToServer(c), {}, { url: c.url, bearerToken: token ?? undefined });
 }
