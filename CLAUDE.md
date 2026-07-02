@@ -938,7 +938,7 @@ Run `docker-compose up --build` from the project root. Set env vars in your shel
 
 5. **No pagination for conversations**: All conversations are loaded at once from storage. This will degrade performance as conversation count grows.
 
-6. **API keys in localStorage are not encrypted**: In standalone mode, API keys are stored as plain text in localStorage (local to the user's own browser). In connected mode, keys are AES-256-GCM encrypted server-side via `POST /api/provider-keys` (`lib/auth/provider-keys.ts`); legacy XOR rows are migrated on read. See `docs/security/2026-06-10-security-hardening.md`.
+6. **API keys in localStorage are not encrypted**: In standalone mode, API keys are stored as plain text in localStorage (local to the user's own browser). In connected mode, keys are AES-256-GCM encrypted server-side via `POST /api/provider-keys` (`lib/auth/provider-keys.ts`); legacy XOR rows are migrated on read.
 
 7. **Local model URLs are in-memory only**: `ollamaUrl` and `lmStudioUrl` in the settings store are not yet persisted to the StorageAdapter. They reset to defaults on page reload.
 
