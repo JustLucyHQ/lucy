@@ -145,13 +145,13 @@ docker build \
 
 ### 8. Channels & sync (optional)
 
-- **Telegram bot** — needs connected mode + `telegram.sql`. Configure under **Admin → Channels → Telegram**, then **Register webhook** (public HTTPS only). See `docs/DEPLOYMENT.md` for the full flow.
+- **Telegram bot** — needs connected mode + `telegram.sql`. Configure under **Admin → Channels → Telegram**, then **Register webhook** (public HTTPS only).
 - **Desktop → cloud sync** — `POST /api/sync/push` upserts a desktop user's local data into their cloud account, authenticated with a Lucy API key (`lucy_k_…`). Needs `sync.sql` applied to the cloud project.
 
 ### 9. Security checklist
 
 - `SUPABASE_SERVICE_ROLE_KEY` is server-only — never expose it to the browser or bake it into a Docker image.
 - Provider keys are AES-256-GCM encrypted at rest (`/api/provider-keys`); they're decrypted server-side at call time and never reach the browser during a run.
-- 2FA is enforced server-side in `proxy.ts`; see `docs/security/` for the audit trail.
+- 2FA is enforced server-side in `proxy.ts`.
 - Rate limiting on `/api/chat` is in-memory — put Redis/Upstash in front for serverless deployments.
 - Confirm Supabase Auth Site URL + redirect allowlist match your origin (step 3) so reset/confirmation links can't redirect off-domain.
