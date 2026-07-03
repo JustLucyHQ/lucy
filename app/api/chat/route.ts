@@ -247,9 +247,10 @@ export async function POST(req: NextRequest) {
                 .select('embedder_provider, embedder_model, embedder_base_url, embedder_api_key')
                 .eq('id', 1)
                 .maybeSingle();
+              const { decryptSecretMaybe } = await import('@/lib/mcp/secret');
               const store = new SupabaseMemoryStore(memClient, {
                 // admin-set embedder key wins; else fall back to the OpenAI key.
-                apiKey: (cfg?.embedder_api_key as string) || embedderKey,
+                apiKey: decryptSecretMaybe(cfg?.embedder_api_key as string | undefined) || embedderKey,
                 model: (cfg?.embedder_model as string) || undefined,
                 baseURL: (cfg?.embedder_base_url as string) || undefined,
                 provider: (cfg?.embedder_provider as string) || undefined,

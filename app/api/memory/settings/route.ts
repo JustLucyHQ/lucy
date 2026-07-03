@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
+import { encryptSecret } from '@/lib/mcp/secret';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,6 +57,11 @@ export async function POST(req: NextRequest) {
   }
   if (Object.keys(patch).length === 0) {
     return Response.json({ ok: false, error: 'no valid fields' }, { status: 400 });
+  }
+
+  // Encrypt at rest, like every other secret column in this schema.
+  if (typeof patch.embedder_api_key === 'string' && patch.embedder_api_key) {
+    patch.embedder_api_key = encryptSecret(patch.embedder_api_key);
   }
 
   // Changing the embedding dimension reshapes the vector column (and clears any

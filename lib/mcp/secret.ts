@@ -25,3 +25,16 @@ export function decryptSecret(enc: string, secret = process.env.SUPABASE_SERVICE
     return Buffer.concat([d.update(Buffer.from(ctH, 'hex')), d.final()]).toString('utf8');
   } catch { return null; }
 }
+
+const ENC_FORMAT = /^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/i;
+
+/**
+ * Decrypt a column that may hold either an encryptSecret() ciphertext or a
+ * legacy plaintext value written before that column was encrypted at rest.
+ * Returns '' for anything falsy or that fails to decrypt.
+ */
+export function decryptSecretMaybe(value: string | null | undefined, secret = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''): string {
+  if (!value) return '';
+  if (!ENC_FORMAT.test(value)) return value;
+  return decryptSecret(value, secret) ?? '';
+}
