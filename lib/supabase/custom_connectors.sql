@@ -14,6 +14,11 @@ create table if not exists lucy.custom_connectors (
   unique (user_id, slug)
 );
 alter table lucy.custom_connectors enable row level security;
-grant all on table lucy.custom_connectors to anon, authenticated, service_role;
+-- No RLS policy exists (RLS-enabled-with-zero-policies currently default-denies
+-- anon/authenticated, but that's an accident of Postgres semantics, not an
+-- enforced rule) — anon/authenticated never legitimately query this table
+-- directly (lib/mcp/custom.ts is service-role only), so don't grant them at all.
+grant all on table lucy.custom_connectors to service_role;
+revoke all on table lucy.custom_connectors from anon, authenticated;
 
 notify pgrst, 'reload schema';

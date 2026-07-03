@@ -27,7 +27,10 @@ drop policy if exists oauth_conn_update_own on lucy.oauth_connections;
 create policy oauth_conn_update_own on lucy.oauth_connections for update using (auth.uid() = user_id);
 drop policy if exists oauth_conn_delete_own on lucy.oauth_connections;
 create policy oauth_conn_delete_own on lucy.oauth_connections for delete using (auth.uid() = user_id);
-grant all on table lucy.oauth_connections to anon, authenticated, service_role;
+-- authenticated is legitimate here (the RLS policies above scope it to own
+-- rows); anon has no reason to touch this table at all.
+grant all on table lucy.oauth_connections to authenticated, service_role;
+revoke all on table lucy.oauth_connections from anon;
 
 -- DCR client cache: one row per hosted remote-MCP authorization server. No RLS
 -- policy (service-role only) — the app reads/writes it server-side during OAuth.
@@ -39,6 +42,9 @@ create table if not exists lucy.oauth_clients (
   created_at timestamptz not null default now()
 );
 alter table lucy.oauth_clients enable row level security;
-grant all on table lucy.oauth_clients to anon, authenticated, service_role;
+-- Service-role only — no RLS policy exists, so a broader grant here is a bare
+-- Postgres GRANT with zero RLS backstop (unlike oauth_connections above).
+grant all on table lucy.oauth_clients to service_role;
+revoke all on table lucy.oauth_clients from anon, authenticated;
 
 notify pgrst, 'reload schema';
