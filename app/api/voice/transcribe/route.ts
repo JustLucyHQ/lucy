@@ -18,12 +18,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
 import { assertPublicHttpUrl } from '@/lib/security/ssrf-guard';
+import { checkRateLimit, getClientIp } from '@/lib/api/rate-limit';
 import OpenAI, { toFile } from 'openai';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Each call runs a paid transcription pass — keep the per-IP ceiling modest.
+const RATE_LIMIT_MAX = 15;
+
 export async function POST(req: NextRequest) {
+  const { limited, retryAfterSeconds } = checkRateLimit('voice-transcribe', getClientIp(req), RATE_LIMIT_MAX);
+  if (limited) {
+    return NextResponse.json(
+      { text: '', error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+    );
+  }
+
   // Auth — require a valid session or API key in connected mode. Standalone
   // (no Supabase) is single-user local: the user's own key rides in the headers,
   // so there's no backend identity to check and gating would only break voice.

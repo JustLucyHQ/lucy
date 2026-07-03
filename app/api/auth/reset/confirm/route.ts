@@ -1,11 +1,18 @@
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { confirmCode } from '@/lib/email/codes';
+import { checkRateLimit, getClientIp } from '@/lib/api/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// This is the brute-force target for the emailed reset code — keep it tight.
+const RATE_LIMIT_MAX = 10;
+
 export async function POST(req: NextRequest) {
+  const { limited } = checkRateLimit('reset-confirm', getClientIp(req), RATE_LIMIT_MAX);
+  if (limited) return Response.json({ ok: false, reason: 'mismatch' }); // same shape as a wrong-code failure
+
   const { email, code, password } = await req.json().catch(() => ({}));
   if (
     typeof email !== 'string' ||

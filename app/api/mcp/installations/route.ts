@@ -3,12 +3,17 @@ import { createClient } from '@supabase/supabase-js';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
 import { getInstallations, install, uninstall, patchInstall, maskConfig, validateConfig } from '@/lib/mcp/installer';
 import { getServer } from '@/lib/mcp/registry';
+import { checkRateLimit, getClientIp } from '@/lib/api/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+const RATE_LIMIT_MAX = 30; // per IP per minute — shared across GET/POST/PATCH/DELETE
 function svc() { return createClient((process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { db: { schema: 'lucy' } }); }
+function limited(req: NextRequest) { return checkRateLimit('mcp-installations', getClientIp(req), RATE_LIMIT_MAX); }
 
 export async function GET(req: NextRequest) {
+  const rl = limited(req);
+  if (rl.limited) return Response.json({ installations: [] }, { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } });
   const { userId } = await resolveMemoryAuth(req);
   if (!userId) return Response.json({ installations: [] });
   const s = svc();
@@ -23,6 +28,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const rl = limited(req);
+  if (rl.limited) return Response.json({ ok: false, error: 'rate limited' }, { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } });
   const { userId } = await resolveMemoryAuth(req);
   if (!userId) return Response.json({ ok: false }, { status: 401 });
   const { slug, config } = await req.json().catch(() => ({}));
@@ -36,6 +43,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const rl = limited(req);
+  if (rl.limited) return Response.json({ ok: false, error: 'rate limited' }, { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } });
   const { userId } = await resolveMemoryAuth(req);
   if (!userId) return Response.json({ ok: false }, { status: 401 });
   const { slug, enabled, require_approval } = await req.json().catch(() => ({}));
@@ -44,6 +53,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const rl = limited(req);
+  if (rl.limited) return Response.json({ ok: false, error: 'rate limited' }, { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } });
   const { userId } = await resolveMemoryAuth(req);
   if (!userId) return Response.json({ ok: false }, { status: 401 });
   const slug = new URL(req.url).searchParams.get('slug');

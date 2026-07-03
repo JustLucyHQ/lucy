@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
 import { confirmCode } from '@/lib/email/codes';
+import { checkRateLimit } from '@/lib/api/rate-limit';
 import {
   TWOFA_COOKIE_NAME,
   TWOFA_COOKIE_TTL_SECONDS,
@@ -12,9 +13,16 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Keyed by userId (not IP) — the threat model here is a hijacked/compromised
+// session brute-forcing its own emailed code, not an anonymous IP flood.
+const RATE_LIMIT_MAX = 10;
+
 export async function POST(req: NextRequest) {
   const { userId } = await resolveMemoryAuth(req);
   if (!userId) return Response.json({ ok: false }, { status: 401 });
+
+  const { limited } = checkRateLimit('2fa-verify', userId, RATE_LIMIT_MAX);
+  if (limited) return Response.json({ ok: false, reason: 'mismatch' }); // same shape as a wrong-code failure
 
   const { code } = await req.json().catch(() => ({}));
   if (typeof code !== 'string') return Response.json({ ok: false, reason: 'mismatch' });

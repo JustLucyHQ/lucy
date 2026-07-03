@@ -2,13 +2,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
 import { validateRunBody } from './validate';
+import { checkRateLimit } from '@/lib/api/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Each call enqueues a run for the async worker — bound how fast one user can
+// flood the queue.
+const RATE_LIMIT_MAX = 30;
+
 export async function POST(req: NextRequest) {
   const { userId, client } = await resolveMemoryAuth(req);
   if (!userId || !client) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { limited, retryAfterSeconds } = checkRateLimit('workflows-run', userId, RATE_LIMIT_MAX);
+  if (limited) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+    );
+  }
 
   const v = validateRunBody(await req.json().catch(() => null));
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: v.status });

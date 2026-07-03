@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { startScreening } from '@/lib/screening';
 import { validateApiKey } from '@/lib/auth/api-keys';
+import { checkRateLimit, getClientIp } from '@/lib/api/rate-limit';
 import type { StartScreeningRequest } from '@/lib/screening/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// Creates a screening record + kicks off async work per call — keep the
+// per-IP ceiling modest.
+const RATE_LIMIT_MAX = 10;
 
 function getServiceClient() {
   const url = (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
@@ -15,6 +20,14 @@ function getServiceClient() {
 }
 
 export async function POST(req: NextRequest) {
+  const { limited, retryAfterSeconds } = checkRateLimit('screening-start', getClientIp(req), RATE_LIMIT_MAX);
+  if (limited) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+    );
+  }
+
   const userId = await validateApiKey(req.headers.get('authorization'));
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized — provide a valid Lucy API key' }, { status: 401 });

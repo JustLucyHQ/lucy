@@ -15,9 +15,13 @@ interface Entry {
 const buckets = new Map<string, Map<string, Entry>>();
 
 export function getClientIp(req: NextRequest): string {
+  // nginx sets X-Real-IP unconditionally from $remote_addr (a single value it
+  // always overwrites, never appends to) — trust it first. X-Forwarded-For is
+  // appended-to via $proxy_add_x_forwarded_for rather than replaced, so a client
+  // can prepend a fake IP; nginx's own view ends up LAST in the list, not first.
   return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    req.headers.get('x-real-ip') ??
+    req.headers.get('x-real-ip')?.trim() ??
+    req.headers.get('x-forwarded-for')?.split(',').pop()?.trim() ??
     'unknown'
   );
 }
