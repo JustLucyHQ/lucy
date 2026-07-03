@@ -25,6 +25,9 @@ create table if not exists lucy.embed_widgets (
   updated_at timestamptz not null default now()
 );
 alter table lucy.embed_widgets enable row level security;
-grant all on table lucy.embed_widgets to anon, authenticated, service_role;
+-- No RLS policy — matches the comment above (service-role only); anon/
+-- authenticated never legitimately touch this table directly.
+grant all on table lucy.embed_widgets to service_role;
+revoke all on table lucy.embed_widgets from anon, authenticated;
 
 notify pgrst, 'reload schema';
