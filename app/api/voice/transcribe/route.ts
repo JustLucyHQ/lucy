@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
+import { assertPublicHttpUrl } from '@/lib/security/ssrf-guard';
 import OpenAI, { toFile } from 'openai';
 
 export const runtime = 'nodejs';
@@ -56,9 +57,24 @@ export async function POST(req: NextRequest) {
   try {
     // ── OpenAI / Local (OpenAI-compatible) ────────────────────────────────────
     if (provider === 'openai' || provider === 'local') {
+      // A custom baseUrl is legitimate for self-hosted Whisper-compatible servers
+      // (e.g. a local sidecar on the user's own machine/network). On the hosted
+      // multi-tenant SaaS, block private/internal targets to prevent SSRF; a
+      // single-tenant self-host has a genuine reason to reach its own localhost.
+      if (baseUrl && process.env.WORKFLOW_MULTI_TENANT === '1') {
+        try {
+          assertPublicHttpUrl(baseUrl, 'voice transcribe baseUrl');
+        } catch (e) {
+          const message = e instanceof Error ? e.message : 'Invalid baseUrl';
+          return NextResponse.json({ text: '', error: message }, { status: 400 });
+        }
+      }
+
+      // Never relay the server's own OPENAI_API_KEY to a caller-supplied baseUrl —
+      // that key is only valid (and only meant) for the real OpenAI endpoint.
       const apiKey =
         req.headers.get('x-openai-key') ||
-        process.env.OPENAI_API_KEY ||
+        (baseUrl ? undefined : process.env.OPENAI_API_KEY) ||
         'not-required';
 
       const client = new OpenAI({

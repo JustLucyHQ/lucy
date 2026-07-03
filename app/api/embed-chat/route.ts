@@ -139,11 +139,17 @@ export async function POST(req: NextRequest) {
   const MAX_TOKENS = 500;
 
   // Log the visitor's latest message so the owner can read the conversation.
+  // ensureConversation confirms convId (client-supplied) actually belongs to this
+  // widget/owner before we write to it — otherwise a visitor could reuse or guess
+  // another tenant's conversation id to inject text into their transcript.
   const lastUser = [...history].reverse().find((m) => m.role === 'user');
+  let loggingId: string | null = null;
   if (convId && lastUser) {
     try {
-      await ensureConversation(convId, widget.id, widget.user_id);
-      await addMessage(convId, 'user', lastUser.content);
+      if (await ensureConversation(convId, widget.id, widget.user_id)) {
+        loggingId = convId;
+        await addMessage(loggingId, 'user', lastUser.content);
+      }
     } catch { /* logging must never block the reply */ }
   }
 
@@ -182,10 +188,10 @@ export async function POST(req: NextRequest) {
         controller.enqueue(sse({ error: 'Sorry, something went wrong answering that.' }));
       }
       // Persist the assistant reply + refresh the conversation summary.
-      if (convId) {
+      if (loggingId) {
         try {
-          if (answer.trim()) await addMessage(convId, 'assistant', answer);
-          await finalizeConversation(convId);
+          if (answer.trim()) await addMessage(loggingId, 'assistant', answer);
+          await finalizeConversation(loggingId);
         } catch { /* logging must never break the stream */ }
       }
       controller.enqueue(enc.encode('data: [DONE]\n\n'));
