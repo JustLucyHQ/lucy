@@ -28,11 +28,26 @@ export interface ConvMessage {
   created_at: string;
 }
 
-/** Create the conversation row on first turn (no-op if it already exists). */
-export async function ensureConversation(id: string, widgetId: string, ownerId: string): Promise<void> {
-  await svc()
+/**
+ * Create the conversation row on first turn, or confirm a client-supplied id
+ * already belongs to this widget/owner. Returns false if the id collides with
+ * a conversation owned by a DIFFERENT widget/owner — the caller must not log
+ * into it, since a visitor supplies conversationId and could otherwise reuse
+ * or guess another tenant's id to inject text into their transcript.
+ */
+export async function ensureConversation(id: string, widgetId: string, ownerId: string): Promise<boolean> {
+  const client = svc();
+  const { error } = await client
     .from('embed_conversations')
-    .upsert({ id, widget_id: widgetId, user_id: ownerId }, { onConflict: 'id', ignoreDuplicates: true });
+    .insert({ id, widget_id: widgetId, user_id: ownerId });
+  if (!error) return true;
+
+  const { data: existing } = await client
+    .from('embed_conversations')
+    .select('widget_id,user_id')
+    .eq('id', id)
+    .maybeSingle();
+  return !!existing && existing.widget_id === widgetId && existing.user_id === ownerId;
 }
 
 export async function addMessage(conversationId: string, role: 'user' | 'assistant', content: string): Promise<void> {
