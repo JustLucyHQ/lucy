@@ -16,7 +16,7 @@ function ResetForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password.length < 8) return setError('Password must be at least 8 characters.');
+    if (password.length < 12) return setError('Password must be at least 12 characters.');
     if (password !== confirm) return setError('Passwords do not match.');
     setLoading(true);
     const res = await fetch('/api/auth/reset/confirm', {
@@ -87,7 +87,7 @@ function ResetForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min. 8 characters"
+              placeholder="Min. 12 characters"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-lucy-500 focus:ring-1 focus:ring-lucy-500"
             />
           </div>

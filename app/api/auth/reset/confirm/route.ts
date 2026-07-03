@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     typeof email !== 'string' ||
     typeof code !== 'string' ||
     typeof password !== 'string' ||
-    password.length < 8
+    password.length < 12
   ) {
     return Response.json({ ok: false, reason: 'mismatch' });
   }
