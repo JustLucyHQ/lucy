@@ -7,6 +7,9 @@
 // a transient Supabase error during the email-2FA profile lookup fell through to
 // the fail-open catch and silently served the protected page with 2FA unconfirmed.
 // A total outage during the initial session lookup must still fail open.
+//
+// Also covers the signup email-verification gate (checked before 2FA): an
+// unconfirmed account must be redirected to /auth/confirm-email.
 
 const mockGetSession = jest.fn();
 const mockGetAAL = jest.fn();
@@ -52,7 +55,9 @@ describe('proxy — 2FA fail-open vs fail-closed', () => {
       SUPABASE_SERVICE_ROLE_KEY: 'service-secret',
     };
     mockGetAAL.mockResolvedValue({ data: { currentLevel: 'aal1', nextLevel: 'aal1' } });
-    mockMaybeSingle.mockResolvedValue({ data: { two_factor_email_enabled: false } });
+    // Same user_profiles row shape backs BOTH the email-verification gate and the
+    // 2FA gate (both query .from('user_profiles').select(...).eq(...).maybeSingle()).
+    mockMaybeSingle.mockResolvedValue({ data: { email_verified: true, two_factor_email_enabled: false } });
   });
 
   afterEach(() => {
@@ -80,7 +85,7 @@ describe('proxy — 2FA fail-open vs fail-closed', () => {
     // confirming the whole 2FA block is fail-closed end-to-end.
     mockGetSession.mockResolvedValue({ data: { session: { user: { id: USER_ID } } } });
     mockGetAAL.mockRejectedValue(new Error('aal unavailable'));
-    mockMaybeSingle.mockResolvedValue({ data: { two_factor_email_enabled: true } });
+    mockMaybeSingle.mockResolvedValue({ data: { email_verified: true, two_factor_email_enabled: true } });
     const res = await proxy(fakeRequest('/chat'));
     // No valid 2FA cookie and email-2FA enabled -> normal redirect to /auth/2fa,
     // proving the AAL throw didn't leak through as an unconfirmed pass-through.
@@ -92,5 +97,21 @@ describe('proxy — 2FA fail-open vs fail-closed', () => {
     mockGetSession.mockResolvedValue({ data: { session: { user: { id: USER_ID } } } });
     const res = await proxy(fakeRequest('/chat'));
     expect(res.status).not.toBe(307);
+  });
+
+  it('redirects an unverified account to /auth/confirm-email, checked before 2FA', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: USER_ID } } } });
+    mockMaybeSingle.mockResolvedValue({ data: { email_verified: false, two_factor_email_enabled: true } });
+    const res = await proxy(fakeRequest('/chat'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/auth/confirm-email');
+  });
+
+  it('redirects to /auth/confirm-email when the profile row does not exist yet', async () => {
+    mockGetSession.mockResolvedValue({ data: { session: { user: { id: USER_ID } } } });
+    mockMaybeSingle.mockResolvedValue({ data: null });
+    const res = await proxy(fakeRequest('/chat'));
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/auth/confirm-email');
   });
 });

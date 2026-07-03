@@ -1,6 +1,6 @@
 export interface CodeVars { firstName: string; code: string; expiresMinutes: number; }
 export interface RenderedEmail { subject: string; html: string; text: string; }
-export type TemplateKey = 'passwordReset' | 'twoFactorCode';
+export type TemplateKey = 'passwordReset' | 'twoFactorCode' | 'signupConfirm';
 
 const wrap = (heading: string, body: string) => `
 <div style="font-family:system-ui,Segoe UI,Roboto,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111">
@@ -22,6 +22,14 @@ export function renderEmail(key: TemplateKey, vars: CodeVars): RenderedEmail {
       html: wrap('Reset your password',
         `<p>Hi ${firstName}, use this code to reset your password. It expires in ${expiresMinutes} minutes.</p>${codeBlock(code)}`),
       text: `Hi ${firstName}, your Lucy password reset code is ${code} (expires in ${expiresMinutes} minutes).`,
+    };
+  }
+  if (key === 'signupConfirm') {
+    return {
+      subject: 'Confirm your Lucy account',
+      html: wrap('Confirm your email',
+        `<p>Hi ${firstName}, welcome to Lucy! Use this code to confirm your email and activate your account. It expires in ${expiresMinutes} minutes.</p>${codeBlock(code)}`),
+      text: `Hi ${firstName}, welcome to Lucy! Your confirmation code is ${code} (expires in ${expiresMinutes} minutes).`,
     };
   }
   return {

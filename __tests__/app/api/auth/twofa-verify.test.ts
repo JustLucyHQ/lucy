@@ -8,7 +8,7 @@
 
 const FAKE_SVC = { marker: 'svc-client' };
 jest.mock('@supabase/supabase-js', () => ({ createClient: jest.fn(() => FAKE_SVC) }));
-jest.mock('@/lib/memory/auth', () => ({ resolveMemoryAuth: jest.fn() }));
+jest.mock('@/lib/memory/auth', () => ({ resolveSessionUserId: jest.fn() }));
 jest.mock('@/lib/email/codes', () => ({ confirmCode: jest.fn().mockResolvedValue({ ok: false, reason: 'mismatch' }) }));
 jest.mock('@/lib/auth/twofa-cookie', () => ({
   TWOFA_COOKIE_NAME: 'lucy_2fa',
@@ -18,7 +18,7 @@ jest.mock('@/lib/auth/twofa-cookie', () => ({
 }));
 
 import { POST } from '@/app/api/auth/2fa/verify/route';
-import { resolveMemoryAuth } from '@/lib/memory/auth';
+import { resolveSessionUserId } from '@/lib/memory/auth';
 import { confirmCode } from '@/lib/email/codes';
 
 function fakeReq(): any {
@@ -38,7 +38,7 @@ describe('auth/2fa/verify — rate limiting', () => {
   });
 
   it('blocks after RATE_LIMIT_MAX attempts for the same user', async () => {
-    (resolveMemoryAuth as jest.Mock).mockResolvedValue({ userId: 'user-brute-1' });
+    (resolveSessionUserId as jest.Mock).mockResolvedValue({ userId: 'user-brute-1' });
     for (let i = 0; i < 10; i++) await POST(fakeReq());
     const callsBeforeLimit = (confirmCode as jest.Mock).mock.calls.length;
     const res: any = await POST(fakeReq());
@@ -49,10 +49,10 @@ describe('auth/2fa/verify — rate limiting', () => {
   });
 
   it('scopes the limit per-user — a different user is unaffected', async () => {
-    (resolveMemoryAuth as jest.Mock).mockResolvedValue({ userId: 'user-brute-2' });
+    (resolveSessionUserId as jest.Mock).mockResolvedValue({ userId: 'user-brute-2' });
     for (let i = 0; i < 10; i++) await POST(fakeReq());
 
-    (resolveMemoryAuth as jest.Mock).mockResolvedValue({ userId: 'user-fresh' });
+    (resolveSessionUserId as jest.Mock).mockResolvedValue({ userId: 'user-fresh' });
     await POST(fakeReq());
     expect(confirmCode).toHaveBeenCalledWith(FAKE_SVC, 'user-fresh', '000000', '2fa');
   });

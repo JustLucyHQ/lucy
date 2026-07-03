@@ -26,7 +26,6 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   if (!authEnabled) {
     return (
@@ -46,26 +45,6 @@ export default function SignupPage() {
             >
               Go to Chat
             </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="flex justify-center">
-            <LucyMark className="w-14 h-14" />
-
-          </div>
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-3">
-            <h2 className="text-white font-semibold">Check your email</h2>
-            <p className="text-gray-400 text-sm">
-              We sent a confirmation link to <span className="text-white">{email}</span>.
-              Click it to activate your account.
-            </p>
           </div>
         </div>
       </div>
@@ -101,8 +80,9 @@ export default function SignupPage() {
     if (authError) {
       setError(authError);
     } else {
-      // Supabase typically sends a confirmation email before the session is active
-      setSuccess(true);
+      // signUp() already sent the confirmation code and created a session
+      // (ENABLE_EMAIL_AUTOCONFIRM=true) — the confirm-email page gates /chat.
+      router.push('/auth/confirm-email');
     }
   };
 

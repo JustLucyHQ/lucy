@@ -97,18 +97,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
       },
     });
-    // Best-effort: upsert profile with company if provided and sign-up succeeded
-    if (!error && data.user && metadata?.company) {
+    // Always create the profile row up front (not just when company is given) —
+    // this is what lets the email-verification gate tell "brand-new unconfirmed
+    // signup" apart from "legacy account with no row" (which the migration
+    // backfills as verified). Best-effort: sign-up already succeeded either way.
+    if (!error && data.user) {
       await client
         .from('user_profiles')
         .upsert(
           {
             user_id: data.user.id,
-            company: metadata.company,
-            ...(metadata.display_name ? { display_name: metadata.display_name } : {}),
+            email_verified: false,
+            ...(metadata?.company ? { company: metadata.company } : {}),
+            ...(metadata?.display_name ? { display_name: metadata.display_name } : {}),
           },
           { onConflict: 'user_id' }
         );
+      // Send the confirmation code (best-effort — the /auth/confirm-email page
+      // also requests one itself on mount, so a failure here isn't fatal).
+      try {
+        await fetch('/api/auth/signup/request', { method: 'POST' });
+      } catch {
+        // ignore — the confirm-email page will retry
+      }
     }
     return { error: error?.message ?? null };
   };

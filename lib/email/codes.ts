@@ -17,7 +17,7 @@ export function checkCode(code: string, stored: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export type Purpose = 'reset' | '2fa';
+export type Purpose = 'reset' | '2fa' | 'signup';
 export type Verdict = { ok: true } | { ok: false; reason: 'no_code' | 'expired' | 'too_many' | 'mismatch' };
 export interface CodeRow { code_hash: string; attempts: number; expires_at: string; consumed_at: string | null; }
 

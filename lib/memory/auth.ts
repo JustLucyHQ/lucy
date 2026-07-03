@@ -21,6 +21,12 @@ export interface MemoryAuth {
   client: LucyClient | null;
   /**
    * True when this specific request was rejected ONLY because the account has
+   * an unconfirmed email (signup verification not yet completed) — as opposed
+   * to having no valid session at all. Optional, additive.
+   */
+  emailVerificationRequired?: boolean;
+  /**
+   * True when this specific request was rejected ONLY because the account has
    * 2FA enabled and the session hasn't completed it (AAL1 / no verified email-2FA
    * cookie) — as opposed to having no valid session at all. Optional, additive:
    * routes that don't check it just see userId: null like any other auth failure.
@@ -29,6 +35,78 @@ export interface MemoryAuth {
 }
 
 const UNAUTH: MemoryAuth = { userId: null, email: null, client: null };
+
+interface SessionUser { userId: string; email: string | null; client: LucyClient }
+
+/**
+ * Resolve JUST the cookie-session user, with NEITHER the email-verification nor
+ * the 2FA gate applied. For internal use by resolveMemoryAuth (which adds both
+ * gates) and by the small set of routes whose own job is to SATISFY those gates
+ * (signup/request, signup/confirm, 2fa/request, 2fa/verify) — those routes would
+ * never be able to succeed if they were blocked by the very check they exist to
+ * clear.
+ */
+async function resolveSessionUser(req: NextRequest): Promise<SessionUser | null> {
+  const url = (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) return null;
+
+  try {
+    const client = createServerClient(url, anon, {
+      db: { schema: 'lucy' },
+      cookieOptions: { name: SUPABASE_COOKIE_NAME },
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        // Token refresh needs the response object (handled by middleware); a
+        // no-op here is fine — getUser still validates a non-expired access token.
+        setAll: () => {},
+      },
+    }) as unknown as SupabaseClient;
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+    if (user) return { userId: user.id, email: user.email ?? null, client };
+  } catch (error) {
+    // Fail closed — but log for debuggability.
+    console.warn(
+      '[memory/auth] session auth failed:',
+      error instanceof Error ? error.message : 'unknown error'
+    );
+  }
+  return null;
+}
+
+/**
+ * Resolve the cookie-session user WITHOUT the email-verification/2FA gates —
+ * for use only by signup/request, signup/confirm, 2fa/request, and 2fa/verify.
+ */
+export async function resolveSessionUserId(
+  req: NextRequest
+): Promise<{ userId: string | null; email: string | null; client: LucyClient | null }> {
+  const su = await resolveSessionUser(req);
+  return su ? { userId: su.userId, email: su.email, client: su.client } : { userId: null, email: null, client: null };
+}
+
+/**
+ * Blocks access until the account's signup email has been confirmed (Lucy's
+ * own code-based system — lib/email/codes.ts purpose 'signup' — not GoTrue's
+ * native mailer, which is shared/unbranded across every product on this
+ * Supabase instance). Returns true iff the account is NOT yet verified.
+ */
+async function emailVerificationOutstanding(client: SupabaseClient, userId: string): Promise<boolean> {
+  try {
+    const { data: prof } = await client
+      .from('user_profiles')
+      .select('email_verified')
+      .eq('user_id', userId)
+      .maybeSingle();
+    // No profile row yet (first request right after signup, before the row is
+    // created) — treat as unverified rather than silently letting it through.
+    return prof ? !prof.email_verified : true;
+  } catch {
+    return false; // profile lookup failure — don't lock the user out over an unrelated error
+  }
+}
 
 /**
  * Mirrors proxy.ts's AAL2/email-2FA enforcement, but for the API layer — proxy.ts
@@ -75,43 +153,23 @@ async function twoFactorOutstanding(
  * Lucy API key. Returns the user id and a client to use for that user's data.
  */
 export async function resolveMemoryAuth(req: NextRequest): Promise<MemoryAuth> {
-  const url = (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   // 1) Browser cookie session (same-origin fetches carry the @supabase/ssr cookies)
-  if (url && anon) {
-    try {
-      const client = createServerClient(url, anon, {
-        db: { schema: 'lucy' },
-        cookieOptions: { name: SUPABASE_COOKIE_NAME },
-        cookies: {
-          getAll: () => req.cookies.getAll(),
-          // Token refresh needs the response object (handled by middleware); a
-          // no-op here is fine — getUser still validates a non-expired access token.
-          setAll: () => {},
-        },
-      }) as unknown as SupabaseClient;
-      const {
-        data: { user },
-      } = await client.auth.getUser();
-      if (user) {
-        if (await twoFactorOutstanding(client, req, user.id)) {
-          return { userId: null, email: null, client: null, twoFactorRequired: true };
-        }
-        return { userId: user.id, email: user.email ?? null, client };
-      }
-    } catch (error) {
-      // Fail closed — fall through to API-key auth — but log for debuggability.
-      console.warn(
-        '[memory/auth] session auth failed:',
-        error instanceof Error ? error.message : 'unknown error'
-      );
+  const su = await resolveSessionUser(req);
+  if (su) {
+    const { userId, email, client } = su;
+    if (await emailVerificationOutstanding(client, userId)) {
+      return { userId: null, email: null, client: null, emailVerificationRequired: true };
     }
+    if (await twoFactorOutstanding(client, req, userId)) {
+      return { userId: null, email: null, client: null, twoFactorRequired: true };
+    }
+    return { userId, email, client };
   }
 
   // 2) Lucy API key (external integrations, e.g. Contractors Room)
   const apiUserId = await validateApiKey(req.headers.get('authorization'));
   if (apiUserId) {
+    const url = (process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
     const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (url && svcKey) {
       const svc = createClient(url, svcKey, { db: { schema: 'lucy' } });
