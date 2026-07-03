@@ -34,14 +34,34 @@ export default function AuthCallbackPage() {
       const code = params.get('code');
       const oauthError = params.get('error_description') || params.get('error');
 
-      if (oauthError) {
-        if (!cancelled) setError(decodeURIComponent(oauthError));
+      // GoTrue's native email-confirmation/magic-link/recovery redirects deliver
+      // the session as a URL FRAGMENT (#access_token=...&refresh_token=...)
+      // rather than a query param. @supabase/ssr's createBrowserClient hard-codes
+      // flowType: 'pkce', so its own automatic detectSessionInUrl parsing rejects
+      // this format internally (throws, silently swallowed) — we have to parse
+      // and apply it ourselves.
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const hashError = hashParams.get('error_description') || hashParams.get('error');
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+
+      if (oauthError || hashError) {
+        if (!cancelled) setError(decodeURIComponent(oauthError || hashError || ''));
         return;
       }
 
       try {
         if (code) {
           await client.auth.exchangeCodeForSession(code);
+        } else if (accessToken && refreshToken) {
+          const { error: setSessionError } = await client.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (setSessionError) throw setSessionError;
+          // Clear the tokens from the URL so a refresh doesn't retry with a
+          // now-already-used token pair.
+          window.history.replaceState(null, '', window.location.pathname);
         }
       } catch {
         // detectSessionInUrl may have already consumed the code; fall through
