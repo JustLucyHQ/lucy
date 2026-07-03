@@ -90,6 +90,20 @@ export async function proxy(request: NextRequest) {
     // 2FA would serve the protected page with 2FA unconfirmed. The outer catch
     // still fails open, but only for failures before a session was established.
     try {
+      // ── Signup email verification ──────────────────────────────────────
+      // Lucy's own code-based confirmation (lib/email/codes.ts purpose
+      // 'signup') — not GoTrue's native mailer, which is shared/unbranded
+      // across every product on this Supabase instance. Checked before 2FA:
+      // an unconfirmed account shouldn't be able to set up 2FA yet either.
+      const { data: verifyProf } = await supabase
+        .from('user_profiles')
+        .select('email_verified')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+      if (!verifyProf?.email_verified) {
+        return NextResponse.redirect(new URL('/auth/confirm-email', request.url));
+      }
+
       // TOTP: when the user has a verified TOTP factor, the Supabase session
       // must be at AAL2 (set by mfa.verify). A password-only session is AAL1.
       try {
