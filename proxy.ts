@@ -84,38 +84,50 @@ export async function proxy(request: NextRequest) {
     }
 
     // ── Server-side 2FA enforcement ──────────────────────────────────────
-    // TOTP: when the user has a verified TOTP factor, the Supabase session
-    // must be at AAL2 (set by mfa.verify). A password-only session is AAL1.
+    // Once we have a confirmed session, a failure DURING the 2FA check itself
+    // must fail CLOSED (redirect to login), not fall through to the outer
+    // catch's fail-open — otherwise a transient Supabase error while checking
+    // 2FA would serve the protected page with 2FA unconfirmed. The outer catch
+    // still fails open, but only for failures before a session was established.
     try {
-      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
-        return NextResponse.redirect(new URL('/auth/two-factor-challenge', request.url));
+      // TOTP: when the user has a verified TOTP factor, the Supabase session
+      // must be at AAL2 (set by mfa.verify). A password-only session is AAL1.
+      try {
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aal && aal.nextLevel === 'aal2' && aal.currentLevel !== 'aal2') {
+          return NextResponse.redirect(new URL('/auth/two-factor-challenge', request.url));
+        }
+      } catch {
+        // AAL unavailable — fall through to email-2FA check
       }
-    } catch {
-      // AAL unavailable — fall through to email-2FA check
-    }
 
-    // Email-OTP: enforced via the signed cookie set by /api/auth/2fa/verify.
-    // Only query the profile when the cookie is absent or invalid.
-    const twofaSecret = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (twofaSecret) {
-      const { verifyTwofaCookie, TWOFA_COOKIE_NAME } = await import('@/lib/auth/twofa-cookie');
-      const cookieValue = request.cookies.get(TWOFA_COOKIE_NAME)?.value;
-      if (!verifyTwofaCookie(cookieValue, session.user.id, twofaSecret)) {
-        const { data: prof } = await supabase
-          .from('user_profiles')
-          .select('two_factor_email_enabled')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-        if (prof?.two_factor_email_enabled) {
-          return NextResponse.redirect(new URL('/auth/2fa', request.url));
+      // Email-OTP: enforced via the signed cookie set by /api/auth/2fa/verify.
+      // Only query the profile when the cookie is absent or invalid.
+      const twofaSecret = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (twofaSecret) {
+        const { verifyTwofaCookie, TWOFA_COOKIE_NAME } = await import('@/lib/auth/twofa-cookie');
+        const cookieValue = request.cookies.get(TWOFA_COOKIE_NAME)?.value;
+        if (!verifyTwofaCookie(cookieValue, session.user.id, twofaSecret)) {
+          const { data: prof } = await supabase
+            .from('user_profiles')
+            .select('two_factor_email_enabled')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          if (prof?.two_factor_email_enabled) {
+            return NextResponse.redirect(new URL('/auth/2fa', request.url));
+          }
         }
       }
+    } catch {
+      const loginUrl = new URL('/auth/login', request.url);
+      loginUrl.searchParams.set('redirectTo', pathname);
+      return NextResponse.redirect(loginUrl);
     }
 
     return response;
   } catch {
-    // If anything goes wrong, fail open to avoid blocking the app
+    // Fail open ONLY for failures before a session was ever confirmed (e.g. a
+    // total Supabase outage during client creation / getSession itself).
     return NextResponse.next();
   }
 }
