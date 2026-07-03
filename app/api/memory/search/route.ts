@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { SupabaseMemoryStore } = await import('@/lib/memory/supabase-store');
+    const { decryptSecretMaybe } = await import('@/lib/mcp/secret');
     const { data: cfg } = await client
       .from('memory_settings')
       .select('embedder_provider, embedder_model, embedder_base_url, embedder_api_key')
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     const embedderKey = req.headers.get('x-openai-key') || process.env.OPENAI_API_KEY || '';
     const store = new SupabaseMemoryStore(client, {
-      apiKey: (cfg?.embedder_api_key as string) || embedderKey,
+      apiKey: decryptSecretMaybe(cfg?.embedder_api_key as string | undefined) || embedderKey,
       model: (cfg?.embedder_model as string) || undefined,
       baseURL: (cfg?.embedder_base_url as string) || undefined,
       provider: (cfg?.embedder_provider as string) || undefined,

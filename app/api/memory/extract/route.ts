@@ -5,6 +5,7 @@ import { extractMemories } from '@/lib/memory/extractor';
 import { ingestExtraction } from '@/lib/memory';
 import { SupabaseMemoryStore } from '@/lib/memory/supabase-store';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
+import { decryptSecretMaybe } from '@/lib/mcp/secret';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const store = new SupabaseMemoryStore(client, {
       // admin-set embedder key wins; else the request/env OpenAI key.
-      apiKey: (cfg?.embedder_api_key as string) || embedderKey || process.env.OPENAI_API_KEY || '',
+      apiKey: decryptSecretMaybe(cfg?.embedder_api_key as string | undefined) || embedderKey || process.env.OPENAI_API_KEY || '',
       model: (cfg?.embedder_model as string) || undefined,
       baseURL: (cfg?.embedder_base_url as string) || undefined,
       provider: (cfg?.embedder_provider as string) || undefined,
