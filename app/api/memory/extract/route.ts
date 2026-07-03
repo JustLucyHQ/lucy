@@ -6,14 +6,24 @@ import { ingestExtraction } from '@/lib/memory';
 import { SupabaseMemoryStore } from '@/lib/memory/supabase-store';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
 import { decryptSecretMaybe } from '@/lib/mcp/secret';
+import { checkRateLimit, getClientIp } from '@/lib/api/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const EXTRACTION_TIMEOUT_MS = 30_000;
+const RATE_LIMIT_MAX = 15; // per IP per minute (matches extract-local — each call runs an LLM pass)
 
 export async function POST(req: NextRequest) {
   try {
+    const { limited, retryAfterSeconds } = checkRateLimit('extract', getClientIp(req), RATE_LIMIT_MAX);
+    if (limited) {
+      return Response.json(
+        { ok: false, error: 'rate limited' },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+      );
+    }
+
     const { messages, projectId, conversationId, model, provider, apiKey, embedderKey, incognito } =
       (await req.json()) as {
         messages: ChatMessage[];
