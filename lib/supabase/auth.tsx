@@ -89,7 +89,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error, data } = await client.auth.signUp({
       email,
       password,
-      options: { data: metadata ?? {} },
+      options: {
+        data: metadata ?? {},
+        // The Supabase project's GOTRUE_SITE_URL defaults to a different
+        // product on this shared instance — without this, the confirmation
+        // link would land users on the wrong site after they confirm.
+        emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined,
+      },
     });
     // Best-effort: upsert profile with company if provided and sign-up succeeded
     if (!error && data.user && metadata?.company) {
