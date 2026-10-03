@@ -48,6 +48,22 @@ export async function createCode(
   return code;
 }
 
+/** How many of the newest open codes are accepted — e-mails can arrive out of order or a page can ask twice,
+ * so the code someone reads is not always the newest one they were sent. */
+export const ACCEPT_RECENT_CODES = 3;
+
+/**
+ * Pure: check `code` against the newest few open codes (newest first). OK when any usable one matches;
+ * otherwise the verdict of the newest code (so "expired" / "too many" still read right).
+ */
+export function evaluateRecent(rows: CodeRow[], code: string, nowMs: number): { verdict: Verdict; matchIndex: number } {
+  const open = rows.filter((r) => !r.consumed_at).slice(0, ACCEPT_RECENT_CODES);
+  for (let i = 0; i < open.length; i++) {
+    if (evaluateCode(open[i], code, nowMs).ok) return { verdict: { ok: true }, matchIndex: rows.indexOf(open[i]) };
+  }
+  return { verdict: evaluateCode(open[0] ?? null, code, nowMs), matchIndex: -1 };
+}
+
 export async function confirmCode(
   client: SupabaseClient<any, any, any>, userId: string, code: string, purpose: Purpose
 ): Promise<Verdict> {
@@ -55,13 +71,28 @@ export async function confirmCode(
     .from('email_verification_codes')
     .select('id, code_hash, attempts, expires_at, consumed_at')
     .eq('user_id', userId).eq('purpose', purpose).is('consumed_at', null)
-    .order('created_at', { ascending: false }).limit(1).maybeSingle();
-  const verdict = evaluateCode((data as CodeRow) ?? null, code, Date.now());
-  if (!data) return verdict;
+    .order('created_at', { ascending: false }).limit(ACCEPT_RECENT_CODES);
+  const rows = ((data ?? []) as (CodeRow & { id: string })[]);
+  const { verdict } = evaluateRecent(rows, code, Date.now());
+  if (!rows.length) return verdict;
   if (verdict.ok) {
-    await client.from('email_verification_codes').update({ consumed_at: new Date().toISOString() }).eq('id', (data as any).id);
+    // Used: close this code AND every other open one for the purpose, so none of them works twice.
+    await client.from('email_verification_codes').update({ consumed_at: new Date().toISOString() })
+      .eq('user_id', userId).eq('purpose', purpose).is('consumed_at', null);
   } else if (verdict.reason === 'mismatch') {
-    await client.from('email_verification_codes').update({ attempts: (data as any).attempts + 1 }).eq('id', (data as any).id);
+    await client.from('email_verification_codes').update({ attempts: rows[0].attempts + 1 }).eq('id', rows[0].id);
   }
   return verdict;
+}
+
+/** The newest still-open code for (user, purpose) — lets "send me a code" avoid sending a second one. */
+export async function newestOpenCode(
+  client: SupabaseClient<any, any, any>, userId: string, purpose: Purpose,
+): Promise<{ created_at: string; expires_at: string } | null> {
+  const { data } = await client
+    .from('email_verification_codes')
+    .select('created_at, expires_at')
+    .eq('user_id', userId).eq('purpose', purpose).is('consumed_at', null)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return (data as { created_at: string; expires_at: string } | null) ?? null;
 }
