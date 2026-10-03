@@ -3,6 +3,9 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { Input } from '@/components/ui/Input';
+import { PasswordChecklist } from '@/components/auth/PasswordChecklist';
+import { checkPassword, PASSWORD_HINT } from '@/lib/auth/password-policy';
+import { deviceFingerprint } from '@/lib/auth/device';
 
 interface DeviceRecord {
   id: number;
@@ -18,21 +21,38 @@ export default function Page() {
   const sb = getSupabaseClient();
 
   // ---------- Change password ----------
+  // Done on the server (/api/auth/password): it checks the current password first and signs out every other device.
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwErrors, setPwErrors] = useState<Partial<Record<'current' | 'next' | 'confirm', string>>>({});
   const [pwStatus, setPwStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [pwLoading, setPwLoading] = useState(false);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwStatus(null);
-    if (newPassword.length < 8) { setPwStatus({ ok: false, msg: 'Password must be at least 8 characters.' }); return; }
-    if (newPassword !== confirmPassword) { setPwStatus({ ok: false, msg: 'Passwords do not match.' }); return; }
+    const errors: typeof pwErrors = {};
+    if (!currentPassword) errors.current = 'Enter your current password.';
+    if (!checkPassword(newPassword).ok) errors.next = PASSWORD_HINT;
+    if (newPassword !== confirmPassword) errors.confirm = 'Passwords do not match.';
+    setPwErrors(errors);
+    if (Object.keys(errors).length) return;
     setPwLoading(true);
-    const { error } = await sb!.auth.updateUser({ password: newPassword });
+    const res = await fetch('/api/auth/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current: currentPassword, next: newPassword, confirm: confirmPassword }),
+    });
+    const data = await res.json().catch(() => ({}));
     setPwLoading(false);
-    if (error) { setPwStatus({ ok: false, msg: error.message }); }
-    else { setPwStatus({ ok: true, msg: 'Password updated successfully.' }); setNewPassword(''); setConfirmPassword(''); }
+    if (data.ok) {
+      setPwStatus({ ok: true, msg: 'Password changed. Your other devices were signed out.' });
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
+    } else {
+      setPwErrors(data.errors ?? {});
+      if (data.error) setPwStatus({ ok: false, msg: data.error });
+    }
   };
 
   // ---------- TOTP ----------
@@ -98,15 +118,31 @@ export default function Page() {
     await loadDevices();
   };
 
+  const [othersStatus, setOthersStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const handleSignOutOthers = async () => {
+    if (!window.confirm('Sign out every other device? This browser stays signed in.')) return;
+    setOthersStatus(null);
+    setDevicesLoading(true);
+    const res = await fetch('/api/auth/devices/others', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint: deviceFingerprint() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setOthersStatus(data.ok ? { ok: true, msg: 'Other devices signed out.' } : { ok: false, msg: data.error ?? 'Could not sign out the other devices.' });
+    await loadDevices();
+  };
+
+  // The e-mail code flag is server-only (it decides whether sign-in asks for a code).
   const handleToggleEmailTwofa = async (val: boolean) => {
-    if (!sb) return;
     setEmailTwofaStatus(null);
-    const { data: u } = await sb.auth.getUser();
-    if (!u.user?.id) return;
-    const { error } = await sb
-      .from('user_profiles')
-      .upsert({ user_id: u.user.id, two_factor_email_enabled: val }, { onConflict: 'user_id' });
-    if (error) { setEmailTwofaStatus({ ok: false, msg: error.message }); }
+    const res = await fetch('/api/auth/2fa/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: val }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) { setEmailTwofaStatus({ ok: false, msg: data.error ?? 'Could not save.' }); }
     else { setEmailTwofa(val); setEmailTwofaStatus({ ok: true, msg: val ? 'Email 2FA enabled.' : 'Email 2FA disabled.' }); }
   };
 
@@ -121,22 +157,36 @@ export default function Page() {
       <div className="bg-surface border border-edge rounded-theme p-6 max-w-xl space-y-5">
         <div>
           <h3 className="text-sm font-semibold text-t1">Change password</h3>
-          <p className="text-xs text-t3 mt-0.5">At least 8 characters.</p>
+          <p className="text-xs text-t3 mt-0.5">Confirm your current password first. Your other devices are signed out afterwards.</p>
         </div>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <Input
+            label="Current password"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="••••••••"
+            error={pwErrors.current}
+          />
+          <Input
             label="New password"
             type="password"
+            autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder="••••••••"
+            error={pwErrors.next}
           />
+          <PasswordChecklist password={newPassword} />
           <Input
             label="Confirm new password"
             type="password"
+            autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="••••••••"
+            error={pwErrors.confirm}
           />
           {pwStatus && (
             <p className={`text-xs ${pwStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{pwStatus.msg}</p>
@@ -216,6 +266,9 @@ export default function Page() {
           <h3 className="text-sm font-semibold text-t1">Devices &amp; sessions</h3>
           <p className="text-xs text-t3 mt-0.5">Where your account has signed in.</p>
         </div>
+        {othersStatus && (
+          <p className={`text-xs ${othersStatus.ok ? 'text-green-400' : 'text-red-400'}`}>{othersStatus.msg}</p>
+        )}
         {devicesLoading ? (
           <p className="text-xs text-t3">Loading…</p>
         ) : devices.length === 0 ? (
@@ -252,6 +305,13 @@ export default function Page() {
             ))}
           </ul>
         )}
+        <button
+          onClick={handleSignOutOthers}
+          disabled={devicesLoading}
+          className="text-xs font-medium text-red-400 hover:text-red-300 border border-red-900/60 hover:border-red-700 rounded-theme px-3 py-1.5 transition-colors disabled:opacity-50"
+        >
+          Sign out other devices
+        </button>
       </div>
     </div>
   );

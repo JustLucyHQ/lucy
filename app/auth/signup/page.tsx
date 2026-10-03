@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, Building2 } from 'lucide-react';
 import { LucyMark } from '@/components/brand/LucyMark';
 import { useAuth } from '@/lib/supabase/auth';
+import { PasswordChecklist } from '@/components/auth/PasswordChecklist';
+import { checkPassword, PASSWORD_HINT } from '@/lib/auth/password-policy';
 
 // lucide-react 1.x removed brand icons; inline Google "G" mark instead
 function GoogleIcon({ className }: { className?: string }) {
@@ -66,8 +68,8 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 12) {
-      setError('Password must be at least 12 characters.');
+    if (!checkPassword(password).ok) {
+      setError(PASSWORD_HINT);
       return;
     }
 
@@ -174,9 +176,11 @@ export default function SignupPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Min. 12 characters"
+                  autoComplete="new-password"
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-lucy-500 focus:ring-1 focus:ring-lucy-500"
                 />
               </div>
+              <PasswordChecklist password={password} className="pt-1" />
             </div>
 
             <button
