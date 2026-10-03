@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { set2faPassed } from '@/lib/auth/twofa-session';
@@ -10,8 +10,22 @@ function Challenge() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const asked = useRef(false);
 
-  useEffect(() => { fetch('/api/auth/2fa/request', { method: 'POST' }).catch(() => {}); }, []);
+  // Sends a code only when none is out yet (the server decides); React may run this twice, the server de-duplicates too.
+  useEffect(() => {
+    if (asked.current) return;
+    asked.current = true;
+    fetch('/api/auth/2fa/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+  }, []);
+
+  const resend = async () => {
+    setError(null); setNote(null);
+    const j = await fetch('/api/auth/2fa/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resend: true }) })
+      .then((r) => r.json()).catch(() => null);
+    setNote(j?.sent ? 'A new code is on its way.' : j?.retryInSec ? `A code was just sent — you can ask for another in ${j.retryInSec} s.` : 'A code was just sent — check your inbox (and spam).');
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setError(null); setLoading(true);
@@ -34,10 +48,14 @@ function Challenge() {
       <input value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" maxLength={6} placeholder="123456"
         className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-gray-200 tracking-widest" />
       {error && <p className="text-xs text-red-400">{error}</p>}
+      {note && <p className="text-xs text-emerald-400">{note}</p>}
       <button disabled={loading} className="w-full bg-lucy-600 hover:bg-lucy-500 disabled:opacity-50 text-white rounded px-3 py-2 text-sm">
         {loading ? 'Verifying…' : 'Verify'}
       </button>
-      <button type="button" onClick={() => fetch('/api/auth/2fa/request', { method: 'POST' })} className="text-xs text-gray-500 hover:text-gray-300">Resend code</button>
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={resend} className="text-xs text-gray-500 hover:text-gray-300">Resend code</button>
+        <a href="/auth/logout" className="text-xs text-gray-500 hover:text-gray-300">Sign in as someone else</a>
+      </div>
     </form>
   );
 }

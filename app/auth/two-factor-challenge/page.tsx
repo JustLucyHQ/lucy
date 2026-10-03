@@ -39,6 +39,7 @@ function Challenge() {
         className="w-full bg-gray-950 border border-gray-800 rounded px-3 py-2 text-gray-200 tracking-widest" />
       {error && <p className="text-xs text-red-400">{error}</p>}
       <button className="w-full bg-lucy-600 hover:bg-lucy-500 text-white rounded px-3 py-2 text-sm">Verify</button>
+      <p className="text-xs text-gray-500">Lost your authenticator? <a href="/auth/logout" className="text-gray-400 hover:text-gray-200">Sign in as someone else</a></p>
     </form>
   );
 }
