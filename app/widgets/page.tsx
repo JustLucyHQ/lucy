@@ -52,6 +52,14 @@ const MODELS = [
   { id: 'claude-opus-4-8', label: 'Claude Opus 4.8 (Anthropic) — most capable' },
 ];
 
+/** A new widget lives only on this page until it is saved — so there is never more than one unsaved widget. */
+const NEW = 'new';
+const blankWidget = (): Widget => ({
+  id: '', name: 'New assistant', persona: '', faq: '', model: '', provider: '',
+  greeting: 'Hi! How can I help?', launcher_label: 'Chat with us', position: 'bottom-right', theme: 'dark',
+  accent: '#7c3aed', allowed_origins: [], show_questions: true, suggested_questions: [],
+});
+
 const origin = () => (typeof window !== 'undefined' ? window.location.origin : 'https://justlucy.ai');
 
 export default function WidgetsPage() {
@@ -62,6 +70,9 @@ export default function WidgetsPage() {
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
   const [copied, setCopied] = useState(false);
+  // The one unsaved new widget (kept while you look at other widgets, gone once saved or discarded).
+  const [newDraft, setNewDraft] = useState<Widget | null>(null);
+  const isNew = selId === NEW;
 
   const load = useCallback(async () => {
     const res = await fetch('/api/embed/widgets', { cache: 'no-store' });
@@ -75,22 +86,30 @@ export default function WidgetsPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load; state is set after the awaited fetch
   useEffect(() => { load(); }, [load]);
 
-  const create = async () => {
-    const res = await fetch('/api/embed/widgets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'New assistant' }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (data.ok) {
-      await load();
-      setSelId(data.widget.id);
-    }
+  // Opens the new-widget form; nothing is stored until Save.
+  const create = () => {
+    if (!newDraft) setNewDraft(blankWidget());
+    setSelId(NEW);
   };
 
   const save = async () => {
     if (!draft) return;
     setSaving(true);
+    if (isNew) {
+      const { id: _id, ...fields } = draft; // the server assigns the id
+      const res = await fetch('/api/embed/widgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields),
+      });
+      const data = await res.json().catch(() => ({}));
+      setSaving(false);
+      if (!data.ok) return;
+      await load();
+      setNewDraft(null);
+      setSelId(data.widget.id);
+      return;
+    }
     await fetch('/api/embed/widgets', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -103,6 +122,11 @@ export default function WidgetsPage() {
   };
 
   const remove = async (id: string) => {
+    if (isNew) {
+      setNewDraft(null);
+      setSelId(null);
+      return;
+    }
     await fetch(`/api/embed/widgets?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (selId === id) setSelId(null);
     await load();
@@ -118,7 +142,10 @@ export default function WidgetsPage() {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const set = (patch: Partial<Widget>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  const set = (patch: Partial<Widget>) => {
+    setDraft((d) => (d ? { ...d, ...patch } : d));
+    if (isNew) setNewDraft((d) => (d ? { ...d, ...patch } : d));
+  };
 
   // ── Conversations ────────────────────────────────────────────────────────
   const [tab, setTab] = useState<Tab>('configure');
@@ -132,7 +159,7 @@ export default function WidgetsPage() {
   const [prevSelId, setPrevSelId] = useState<string | null>(selId);
   if (selId !== prevSelId) {
     setPrevSelId(selId);
-    const w = widgets.find((x) => x.id === selId) ?? null;
+    const w = selId === NEW ? newDraft : widgets.find((x) => x.id === selId) ?? null;
     setDraft(w ? { ...w } : null);
     setSavedTick(false);
     setTab('configure');
@@ -171,7 +198,9 @@ export default function WidgetsPage() {
           </div>
           <button
             onClick={create}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-theme bg-lucy-600 hover:bg-lucy-500 text-white text-sm font-medium shrink-0"
+            disabled={!!newDraft}
+            title={newDraft ? 'Save or discard the new widget first' : undefined}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-theme bg-lucy-600 hover:bg-lucy-500 text-white text-sm font-medium shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-lucy-600"
           >
             <Plus className="w-4 h-4" /> New widget
           </button>
@@ -179,7 +208,7 @@ export default function WidgetsPage() {
 
         {loading ? (
           <div className="h-24 rounded-theme bg-raised border border-edge animate-pulse" />
-        ) : widgets.length === 0 ? (
+        ) : widgets.length === 0 && !newDraft ? (
           <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-edge-strong rounded-theme">
             <MessageSquare className="w-8 h-8 text-t3 mb-3" />
             <p className="text-sm text-t2">No widgets yet.</p>
@@ -202,6 +231,16 @@ export default function WidgetsPage() {
                 {w.name || 'Untitled'}
               </button>
             ))}
+            {newDraft && (
+              <button
+                onClick={() => setSelId(NEW)}
+                className={`px-3 py-1.5 rounded-theme text-sm border border-dashed transition-colors ${
+                  isNew ? 'border-lucy-500 bg-lucy-700/30 text-t1' : 'border-edge-strong bg-raised text-t2 hover:text-t1'
+                }`}
+              >
+                {newDraft.name || 'Untitled'} <span className="text-t3">· not saved</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -209,7 +248,7 @@ export default function WidgetsPage() {
           <div className="space-y-4">
             {/* Configure / Conversations tabs */}
             <div className="flex gap-1 p-1 bg-raised border border-edge rounded-theme w-fit">
-              {(['configure', 'conversations'] as Tab[]).map((t) => (
+              {(isNew ? ['configure'] as Tab[] : ['configure', 'conversations'] as Tab[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
@@ -275,6 +314,7 @@ export default function WidgetsPage() {
                 <Field label="Model">
                   <select className={inputCls} value={draft.model}
                     onChange={(e) => set({ model: e.target.value })}>
+                    {isNew && <option value="">Automatic (from your API keys)</option>}
                     {MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                   </select>
                 </Field>
@@ -333,15 +373,18 @@ export default function WidgetsPage() {
                 <button onClick={save} disabled={saving}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-theme bg-lucy-600 hover:bg-lucy-500 text-white text-sm font-medium disabled:opacity-50">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : savedTick ? <Check className="w-4 h-4" /> : null}
-                  {savedTick ? 'Saved' : 'Save changes'}
+                  {savedTick ? 'Saved' : isNew ? 'Save widget' : 'Save changes'}
                 </button>
                 <button onClick={() => remove(draft.id)}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-theme text-sm text-red-400 hover:bg-red-900/20">
-                  <Trash2 className="w-4 h-4" /> Delete
+                  <Trash2 className="w-4 h-4" /> {isNew ? 'Discard' : 'Delete'}
                 </button>
               </div>
 
               {/* Snippet */}
+              {isNew ? (
+                <p className="text-[11px] text-t3 pt-2">Save the widget to get its embed snippet and test page.</p>
+              ) : (
               <div className="pt-2">
                 <label className="text-xs font-medium text-t3">Embed snippet</label>
                 <div className="mt-1 relative">
@@ -365,18 +408,25 @@ export default function WidgetsPage() {
                   <ExternalLink className="w-3.5 h-3.5" /> Open test page in a new tab
                 </a>
               </div>
+              )}
             </div>
 
             {/* Live preview */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-t3">Live preview</label>
               <div className="rounded-theme border border-edge-strong overflow-hidden bg-base" style={{ height: 560 }}>
-                <iframe
-                  key={`${draft.id}-${draft.theme}-${draft.accent}`}
-                  src={`/embed?w=${draft.id}`}
-                  title="Widget preview"
-                  className="w-full h-full"
-                />
+                {isNew ? (
+                  <div className="h-full flex items-center justify-center text-sm text-t3 px-6 text-center">
+                    The preview appears once the widget is saved.
+                  </div>
+                ) : (
+                  <iframe
+                    key={`${draft.id}-${draft.theme}-${draft.accent}`}
+                    src={`/embed?w=${draft.id}`}
+                    title="Widget preview"
+                    className="w-full h-full"
+                  />
+                )}
               </div>
               <p className="text-[11px] text-t3">Preview reflects the last saved version.</p>
             </div>
