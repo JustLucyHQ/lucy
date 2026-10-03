@@ -80,7 +80,10 @@ export async function confirmCode(
     await client.from('email_verification_codes').update({ consumed_at: new Date().toISOString() })
       .eq('user_id', userId).eq('purpose', purpose).is('consumed_at', null);
   } else if (verdict.reason === 'mismatch') {
-    await client.from('email_verification_codes').update({ attempts: rows[0].attempts + 1 }).eq('id', rows[0].id);
+    // A wrong guess counts against EVERY open code, so accepting the last few never adds guesses.
+    for (const r of rows.slice(0, ACCEPT_RECENT_CODES)) {
+      await client.from('email_verification_codes').update({ attempts: r.attempts + 1 }).eq('id', r.id);
+    }
   }
   return verdict;
 }
