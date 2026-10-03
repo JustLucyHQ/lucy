@@ -3,6 +3,8 @@ import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { LucyMark } from '@/components/brand/LucyMark';
+import { PasswordChecklist } from '@/components/auth/PasswordChecklist';
+import { checkPassword, PASSWORD_HINT } from '@/lib/auth/password-policy';
 
 function ResetForm() {
   const router = useRouter();
@@ -16,7 +18,7 @@ function ResetForm() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password.length < 12) return setError('Password must be at least 12 characters.');
+    if (!checkPassword(password).ok) return setError(PASSWORD_HINT);
     if (password !== confirm) return setError('Passwords do not match.');
     setLoading(true);
     const res = await fetch('/api/auth/reset/confirm', {
@@ -37,6 +39,7 @@ function ResetForm() {
           expired: 'Code expired — request a new one.',
           too_many: 'Too many attempts — request a new one.',
           mismatch: 'Invalid code.',
+          weak_password: PASSWORD_HINT,
         } as Record<string, string>
       )[json.reason as string] ?? 'Failed.'
     );
@@ -88,8 +91,10 @@ function ResetForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Min. 12 characters"
+              autoComplete="new-password"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:border-lucy-500 focus:ring-1 focus:ring-lucy-500"
             />
+            <PasswordChecklist password={password} className="pt-1" />
           </div>
 
           <div className="space-y-1">

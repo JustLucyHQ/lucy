@@ -1,3 +1,8 @@
+/** This browser's device id (same value the tracker stores), so the server can keep it when signing out others. */
+export function deviceFingerprint(): string {
+  return fingerprint();
+}
+
 function fingerprint(): string {
   const parts = [navigator.userAgent, navigator.language, `${screen.width}x${screen.height}`,
     Intl.DateTimeFormat().resolvedOptions().timeZone];
