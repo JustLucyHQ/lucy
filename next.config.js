@@ -26,6 +26,8 @@ const BASE_SECURITY_HEADERS = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Next 16.3+ `next dev` appends its own block to CLAUDE.md on every start — our instruction files stay ours.
+  agentRules: false,
   output: 'standalone',
   transpilePackages: [
     'react-markdown',
