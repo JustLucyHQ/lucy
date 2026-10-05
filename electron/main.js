@@ -8,6 +8,7 @@ const path = require('path');
 const net = require('net');
 const http = require('http');
 const fs = require('fs');
+const { isSafeExternalUrl, isAppUrl } = require('./url-policy');
 
 const CLOUD_URL = 'https://justlucy.ai';
 // Desktop app skips the marketing home page: load the app directly. The auth
@@ -221,11 +222,36 @@ async function createWindow() {
   });
   ses.setPermissionCheckHandler((_wc, permission) => permission === 'media');
 
-  // Open target=_blank / external links in the OS browser, not a new window.
+  // Hand a URL to the OS — http(s)/mailto only. Anything else (file:, smb:, custom protocol handlers…) is
+  // dropped: shell.openExternal on an attacker-supplied URL can launch local programs.
+  const openExternalSafe = (url) => {
+    if (isSafeExternalUrl(url)) shell.openExternal(url);
+    else console.warn('[lucy-desktop] blocked external URL with disallowed scheme');
+  };
+
+  // Open target=_blank / external links in the OS browser, not a new window. A link to the app itself
+  // stays in the app window.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (localUrl && isAppUrl(url, localUrl)) {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.loadURL(url);
+    } else {
+      openExternalSafe(url);
+    }
     return { action: 'deny' };
   });
+
+  // The window must never navigate away from the bundled server (a chat link, a redirect or injected script
+  // could otherwise load a remote page here with our preload). Off-origin → system browser instead.
+  // (loadURL calls from this file — splash, error page, app — do not trigger these events.)
+  const guardNavigation = (event, url) => {
+    if (localUrl && isAppUrl(url, localUrl)) return;
+    event.preventDefault();
+    openExternalSafe(url);
+  };
+  mainWindow.webContents.on('will-navigate', guardNavigation);
+  mainWindow.webContents.on('will-redirect', guardNavigation);
+  // No <webview> embedding at all.
+  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
   mainWindow.on('closed', () => {
     mainWindow = null;
   });

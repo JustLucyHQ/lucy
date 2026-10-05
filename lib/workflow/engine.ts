@@ -80,7 +80,17 @@ export interface EngineDeps {
   supabaseClient?: SupabaseClient | null;
   /** Send an email (server only). Absent on the browser path → Send Email errors. */
   sendEmail?: (to: string, subject: string, body: string) => Promise<void>;
+  /**
+   * Allow Code nodes to execute (`new Function`). Server runner only — it is deliberately NOT inferred from
+   * the environment: WORKFLOW_MULTI_TENANT is a server env var and is undefined in the browser, so an
+   * env-only guard never applies client-side. Absent/false (the browser default) → Code nodes refuse to run,
+   * so a workflow shared between team members can never run its author's JS inside another member's session.
+   */
+  allowCodeExecution?: boolean;
 }
+
+/** Shown when a Code node is reached anywhere other than the server runner. */
+export const CODE_STEPS_SERVER_ONLY = 'Code steps run only on the server. Run this workflow in connected mode, or remove the Code step.';
 
 // ─── WorkflowEngine ────────────────────────────────────────────────────────
 
@@ -475,6 +485,10 @@ export class WorkflowEngine {
   private runCode(node: WorkflowNode, context: ExecutionContext): string {
     const config = asCodeConfig(node.data.config);
     const input = this.getLastOutput(context, node.id);
+    // Never execute user code in the browser (stored XSS once workflows are shared in a team).
+    if (!this.deps.allowCodeExecution) {
+      throw new Error(CODE_STEPS_SERVER_ONLY);
+    }
     // `new Function` runs arbitrary JS server-side. Fine when a single owner runs
     // their own workflows (self-host); on a shared multi-tenant host it is RCE, so
     // it's disabled there until a real sandbox (isolated-vm) is wired up.

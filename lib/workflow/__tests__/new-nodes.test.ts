@@ -17,11 +17,34 @@ function wf(middle: unknown, extraEdges: unknown[] = []): Workflow {
 }
 
 describe('new workflow nodes', () => {
-  it('Code node runs the snippet and returns its value', async () => {
-    const mid = { id: 'mid', type: 'code', position: { x: 0, y: 0 }, data: { nodeType: 'code', label: 'Code', config: { code: 'return input.toUpperCase();' } } };
-    const r = await new WorkflowEngine(wf(mid)).execute({ user_query: 'hi' }, {});
+  const codeNode = (code: string) => ({ id: 'mid', type: 'code', position: { x: 0, y: 0 }, data: { nodeType: 'code', label: 'Code', config: { code } } });
+
+  it('Code node runs the snippet and returns its value (server runner opts in)', async () => {
+    const r = await new WorkflowEngine(wf(codeNode('return input.toUpperCase();')), {}, { allowCodeExecution: true }).execute({ user_query: 'hi' }, {});
     expect(r.status).toBe('completed');
     expect(r.finalOutput).toBe('HI');
+  });
+
+  // The browser path builds `new WorkflowEngine(def, callbacks)` with no deps: user code must never execute there.
+  it('Code node NEVER executes without the server opt-in (browser default)', async () => {
+    (globalThis as { __codeRan?: boolean }).__codeRan = false;
+    const r = await new WorkflowEngine(wf(codeNode('globalThis.__codeRan = true; return "pwned";'))).execute({ user_query: 'hi' }, {});
+    expect(r.status).toBe('error');
+    expect(r.error).toMatch(/Code steps run only on the server/);
+    expect((globalThis as { __codeRan?: boolean }).__codeRan).toBe(false);
+    expect(r.logs.some((l) => l.nodeId === 'out')).toBe(false); // downstream did not run
+  });
+
+  it('Code node is refused on a multi-tenant server even with the opt-in', async () => {
+    const prev = process.env.WORKFLOW_MULTI_TENANT;
+    process.env.WORKFLOW_MULTI_TENANT = '1';
+    try {
+      const r = await new WorkflowEngine(wf(codeNode('return "x";')), {}, { allowCodeExecution: true }).execute({ user_query: 'hi' }, {});
+      expect(r.status).toBe('error');
+      expect(r.error).toMatch(/multi-tenant/);
+    } finally {
+      if (prev === undefined) delete process.env.WORKFLOW_MULTI_TENANT; else process.env.WORKFLOW_MULTI_TENANT = prev;
+    }
   });
 
   it('Filter passes the branch when the predicate holds', async () => {

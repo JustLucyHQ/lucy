@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { CopyButton } from './CopyButton';
+import { SafeLink } from './SafeLink';
 
 /**
  * Markdown renderer for chat messages. Isolated into its own module so the
@@ -87,6 +88,8 @@ export default function MarkdownContent({ content }: { content: string }) {
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
       components={{
+        // Only http(s)/mailto links are clickable; the rest render as plain text (see SafeLink).
+        a: ({ href, children }) => <SafeLink href={href}>{children}</SafeLink>,
         pre: ({ children }) => {
           // Extract code text and language from child code element
           const codeEl = React.Children.toArray(children).find(
