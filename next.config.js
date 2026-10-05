@@ -2,10 +2,16 @@
 // directly (client-side auth, provider-key CRUD), so connect-src must allow it.
 const SUPABASE_CONNECT_SRC = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 
+// 'unsafe-eval' is needed ONLY by `next dev` (React/Turbopack rebuild call stacks with eval). Production never
+// needs it, and keeping it would let any injected string become code. Workflow Code nodes run server-side only
+// (lib/workflow/engine.ts), so nothing in the production client uses eval / new Function.
+// Read at call time (not module load) so the policy can be unit-tested for both modes.
+const scriptEval = () => (process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : '');
+
 function csp(frameAncestors) {
   return [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    `script-src 'self' 'unsafe-inline'${scriptEval()}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",

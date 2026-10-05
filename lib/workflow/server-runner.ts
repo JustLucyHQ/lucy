@@ -67,6 +67,8 @@ export async function executeRun(run: WorkflowRunRow, client: SupabaseClient): P
         .join('\n');
     },
     supabaseClient: client,
+    // The only place Code nodes may run (still refused when WORKFLOW_MULTI_TENANT=1, see engine.runCode).
+    allowCodeExecution: true,
     sendEmail: async (to: string, subject: string, body: string): Promise<void> => {
       const { sendRawEmail } = await import('@/lib/email/send');
       await sendRawEmail(to, subject, body);

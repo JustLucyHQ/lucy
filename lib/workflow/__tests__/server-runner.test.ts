@@ -79,6 +79,18 @@ describe('executeRun', () => {
     expect(final.completed_at).toBeTruthy();
   });
 
+  it('runs Code nodes on the server (the only place they are allowed)', async () => {
+    const updates: Record<string, unknown>[] = [];
+    const wf = twoNodeWorkflow();
+    wf.nodes.splice(1, 0, { id: 'code', type: 'code', position: { x: 0, y: 0 }, data: { nodeType: 'code', label: 'Code', config: { code: 'return input.toUpperCase();' } } } as never);
+    wf.edges = [{ id: 'e1', source: 'start', target: 'code' }, { id: 'e2', source: 'code', target: 'out' }] as never;
+    const run: WorkflowRunRow = { id: 'r-code', user_id: 'u1', definition: wf, inputs: { user_query: 'hi' } };
+    await executeRun(run, fakeClient(updates));
+    const final = updates[updates.length - 1];
+    expect(final.status).toBe('succeeded');
+    expect((final.outputs as { finalOutput: string }).finalOutput).toBe('HI');
+  });
+
   it('persists canceled (NOT failed) when cancel_requested is true', async () => {
     const updates: Record<string, unknown>[] = [];
     const run: WorkflowRunRow = { id: 'r2', user_id: 'u1', definition: twoNodeWorkflow(), inputs: { user_query: 'hi' } };

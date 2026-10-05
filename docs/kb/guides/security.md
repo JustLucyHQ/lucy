@@ -155,3 +155,24 @@ via nodemailer, configured with `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` /
 465. If SMTP isn't configured, sends are **skipped gracefully** rather than
 erroring — but password reset and email 2FA then have no way to deliver, so
 configure SMTP if you rely on them.
+
+## Untrusted content: links, workflow code, e-mail, desktop app
+
+Anything written by a model or another person is treated as untrusted:
+
+- **Chat links.** Markdown in chat is rendered without raw HTML. Only `http`, `https`
+  and `mailto` links are clickable (opened in a new tab with
+  `noopener noreferrer nofollow`); `javascript:`, `data:`, relative and unparsable
+  targets show as plain text.
+- **Workflow Code steps run on the server only.** The visual builder never executes
+  user-written JavaScript in the browser. In standalone mode a Code step stops with
+  "Code steps run only on the server"; in connected mode the run happens on the
+  server, where Code steps are additionally refused on shared hosts
+  (`WORKFLOW_MULTI_TENANT=1`).
+- **E-mail.** Names and codes are HTML-escaped before they go into the HTML part of
+  an e-mail.
+- **Content Security Policy.** Production pages are served without `'unsafe-eval'`
+  (`next dev` still allows it).
+- **Desktop app.** The window only ever shows the bundled local server. Links and
+  redirects to any other site open in the system browser, and only `http`, `https`
+  and `mailto` URLs are ever handed to the operating system.
