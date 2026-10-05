@@ -60,6 +60,23 @@ describe('telegram settings', () => {
     expect(await loadTelegramSettings()).toBeNull();
   });
 
+  it('encrypts the webhook secret at rest and opens it on load', async () => {
+    await saveTelegramSettings({ webhookSecret: 'tg-webhook-secret-123', enabled: true });
+    expect(stored!.webhook_secret).not.toBe('tg-webhook-secret-123');
+    expect(String(stored!.webhook_secret)).not.toContain('tg-webhook-secret-123');
+    expect((await loadTelegramSettings())!.webhookSecret).toBe('tg-webhook-secret-123');
+  });
+
+  it('a legacy plaintext webhook secret still reads (rollout before the backfill)', async () => {
+    stored = { bot_token_encrypted: null, mode: 'shared', allowlist: [], shared_owner_user_id: null, shared_api_key_encrypted: null, default_provider: 'anthropic', default_model: 'm', webhook_secret: 'legacyPlainSecret_xyz', enabled: true };
+    expect((await loadTelegramSettings())!.webhookSecret).toBe('legacyPlainSecret_xyz');
+  });
+
+  it('clears the webhook secret when saved as null', async () => {
+    await saveTelegramSettings({ webhookSecret: null });
+    expect(stored!.webhook_secret).toBeNull();
+  });
+
   it('clears a secret when saved as null', async () => {
     await saveTelegramSettings({ botToken: null });
     expect(stored!.bot_token_encrypted).toBeNull();

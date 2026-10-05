@@ -132,6 +132,34 @@ Older rows written with the legacy XOR obfuscation are still readable and get
 re-encrypted opportunistically when read. See [Chat & models](/docs/chat) for how
 keys are used.
 
+## Secrets at rest
+
+Every other secret Lucy keeps in the database is encrypted the same way (AES-256-GCM,
+`lib/mcp/secret.ts`, keyed from `SUPABASE_SERVICE_ROLE_KEY`, a fresh salt and IV per value),
+and decrypted only in server code at the moment it is used:
+
+| Where | What |
+|---|---|
+| `mcp_installations.config` | connector fields declared `secret` |
+| `custom_connectors.token_enc`, `oauth_clients.client_secret_enc`, `oauth_connections.*_token_enc` | connector tokens and OAuth secrets |
+| `telegram_settings.bot_token_encrypted`, `.shared_api_key_encrypted`, `.webhook_secret`, `telegram_links.api_key_encrypted` | Telegram |
+| `memory_settings.embedder_api_key` | the embedder's API key |
+| `workflow_triggers.secret` | a webhook trigger's token / HMAC signing key (shown to the trigger's owner only) |
+
+Reads also accept a value written before it was encrypted, so an upgrade is safe in any
+order. After upgrading, encrypt what is already stored (counts only, never prints a value):
+
+```bash
+node scripts/secrets-backfill.mjs --env-file .env.local            # dry run
+node scripts/secrets-backfill.mjs --env-file .env.local --apply    # encrypt
+node scripts/secrets-backfill.mjs --env-file .env.local --verify   # exit 1 if anything is left
+```
+
+Because the key is derived from `SUPABASE_SERVICE_ROLE_KEY`, **rotating the service-role key
+makes every stored secret unreadable** — re-enter them (or decrypt with the old key and
+re-encrypt) when you rotate it. Keep a copy of the key outside the database server.
+One-way hashes (`api_keys.key_hash`) are not reversible and stay as they are.
+
 ## Per-user isolation (row-level security)
 
 Every Lucy table has RLS enabled with policies keyed to the signed-in user, so one

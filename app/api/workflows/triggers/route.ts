@@ -4,6 +4,7 @@ import { randomBytes } from 'crypto';
 import { resolveMemoryAuth } from '@/lib/memory/auth';
 import { nextRunAfter } from '@/lib/workflow/cron';
 import { validateTriggerBody } from './validate';
+import { encryptSecret, decryptSecretMaybe } from '@/lib/mcp/secret';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,9 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ triggers: data ?? [] });
+  // The webhook secret is encrypted at rest; its OWNER sees it in the triggers panel (webhook URL + HMAC key), so open it here.
+  const triggers = (data ?? []).map((t) => ({ ...t, secret: t.secret ? decryptSecretMaybe(t.secret as string) || null : null }));
+  return NextResponse.json({ triggers });
 }
 
 export async function POST(req: NextRequest) {
@@ -50,11 +53,13 @@ export async function POST(req: NextRequest) {
       row.next_run_at = nextRunAfter(String(v.settings.expr), new Date(), tz)?.toISOString() ?? null;
     }
   }
+  let webhookSecret: string | null = null;
   if (v.type === 'webhook') {
-    row.secret = randomBytes(24).toString('base64url');
+    webhookSecret = randomBytes(24).toString('base64url');
+    row.secret = encryptSecret(webhookSecret); // encrypted at rest (lib/mcp/secret.ts); the owner gets the plaintext below
   }
 
   const { data, error } = await client.from('workflow_triggers').insert(row).select('*').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ trigger: data });
+  return NextResponse.json({ trigger: webhookSecret ? { ...data, secret: webhookSecret } : data });
 }

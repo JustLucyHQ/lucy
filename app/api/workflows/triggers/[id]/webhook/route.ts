@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { checkRateLimit, getClientIp } from '@/lib/api/rate-limit';
+import { decryptSecretMaybe } from '@/lib/mcp/secret';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,7 +61,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .single();
 
   const raw = await req.text();
-  const secret = (trigger?.secret as string) || '';
+  // encrypted at rest (lib/mcp/secret.ts); legacy plaintext rows still open
+  const secret = decryptSecretMaybe(trigger?.secret as string | null | undefined);
   // Accept EITHER the shared token (query or header) OR an HMAC-SHA256 signature of the
   // raw body (x-signature: sha256=<hex>) — so signed providers can verify without a URL token.
   const token = req.nextUrl.searchParams.get('token') || req.headers.get('x-webhook-token') || '';

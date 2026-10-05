@@ -1,5 +1,5 @@
 import { getServiceClient } from '@/lib/auth/admin';
-import { encryptSecret, decryptSecret } from '@/lib/mcp/secret';
+import { encryptSecret, decryptSecret, decryptSecretMaybe } from '@/lib/mcp/secret';
 
 /**
  * Typed load/save for the single-row `lucy.telegram_settings`.
@@ -67,7 +67,8 @@ export async function loadTelegramSettings(): Promise<TelegramSettings | null> {
     sharedApiKey: row.shared_api_key_encrypted ? decryptSecret(row.shared_api_key_encrypted) : null,
     defaultProvider: row.default_provider,
     defaultModel: row.default_model,
-    webhookSecret: row.webhook_secret,
+    // encrypted at rest like the bot token; a legacy plaintext value (before 2026-10-06) still reads
+    webhookSecret: row.webhook_secret ? decryptSecretMaybe(row.webhook_secret) || null : null,
     enabled: row.enabled,
   };
 }
@@ -87,7 +88,7 @@ export async function saveTelegramSettings(patch: TelegramSettingsPatch): Promis
   if (patch.sharedOwnerUserId !== undefined) row.shared_owner_user_id = patch.sharedOwnerUserId;
   if (patch.defaultProvider !== undefined) row.default_provider = patch.defaultProvider;
   if (patch.defaultModel !== undefined) row.default_model = patch.defaultModel;
-  if (patch.webhookSecret !== undefined) row.webhook_secret = patch.webhookSecret;
+  if (patch.webhookSecret !== undefined) row.webhook_secret = patch.webhookSecret ? encryptSecret(patch.webhookSecret) : null;
   if (patch.enabled !== undefined) row.enabled = patch.enabled;
 
   const { error } = await client.from('telegram_settings').upsert(row, { onConflict: 'id' });
