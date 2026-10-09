@@ -36,11 +36,7 @@ export function LegalLayout({
           {children}
         </article>
         <p className="mt-12 text-sm text-gray-500">
-          Questions? Contact us at{' '}
-          <a href="mailto:support@justlucy.ai" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
-            support@justlucy.ai
-          </a>
-          .
+          Questions? Contact us at <span className="text-gray-300">support @ justlucy.ai</span>.
         </p>
       </main>
       <SiteFooter />
