@@ -31,14 +31,14 @@
     "@anthropic-ai/sdk": "^0.104.1",
     "@google/generative-ai": "^0.24.1",
     "@lobehub/icons": "^5.10.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.1",
     "@xyflow/react": "^12.11.0",
     "cron-parser": "^4.9.0",
     "grammy": "^1.44.0",
     "lucide-react": "^1.17.0",
-    "next": "16.3.8",
+    "next": "16.4.3",
     "nodemailer": "^10.0.14",
     "openai": "^6.42.0",
     "react": "^19.2.7",
@@ -63,12 +63,12 @@
     "electron": "^42.5.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.3",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "png-to-ico": "^3.0.1",
     "postcss": "^8.5.10",
-    "sharp": "^0.35.2",
+    "sharp": "^0.35.5",
     "tailwindcss": "^3.4.15",
     "ts-node": "^10.9.2",
     "tsx": "^4.22.4",
@@ -76,6 +76,7 @@
   },
   "overrides": {
     "js-yaml": "^4.2.0",
-    "postcss": "$postcss"
+    "postcss": "$postcss",
+    "katex": "^0.18.2"
   }
 }
