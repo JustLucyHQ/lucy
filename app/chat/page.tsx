@@ -524,7 +524,7 @@ export default function ChatPage() {
           }
           await note(
             saved
-              ? `🧠 Saved to memory${cmd.kind === 'global' ? ' (shared globally)' : ''}.`
+              ? '🧠 Saved to memory.'
               : '🧠 Memory is off — enable it in Settings to save this.'
           );
           return;

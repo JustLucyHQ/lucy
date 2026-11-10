@@ -119,7 +119,7 @@ Type **`/`** in the chat box for an autocomplete menu of slash-commands:
 |---|---|
 | `/remember <text>` | Save a fact to memory |
 | `/forget <text>` | Forget memories matching the text |
-| `/global <text>` | Save shared knowledge for everyone |
+| `/global <text>` | Save a fact to memory (only you see it) |
 | `/memories` | Show what Lucy remembers (count + recent) |
 | `/incognito` | Toggle: don't capture memories this session |
 | `/new` | Start a new conversation |
@@ -622,7 +622,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 
 Open the **SQL Editor** in your Supabase dashboard and execute the full contents of `lib/supabase/schema.sql`. This creates all required tables and indexes.
 
-To enable the **memory system** (connected mode), also run `lib/supabase/memory.sql` followed by `lib/supabase/memory_search.sql`. These add the `pgvector` extension, the memory/entity/profile tables (HNSW + FTS indexes), RLS policies, the single-row `memory_settings` config, and the hybrid-search RPCs. Memory stays **off** until an admin enables it in **Settings → Memory**.
+To enable the **memory system** (connected mode), also run `lib/supabase/memory.sql`, then `lib/supabase/memory_search.sql`, then `lib/supabase/memory_global_scope.sql`. These add the `pgvector` extension, the memory/entity/profile tables (HNSW + FTS indexes), RLS policies, the single-row `memory_settings` config, and the hybrid-search RPCs. Memory stays **off** until an admin enables it in **Settings → Memory**.
 
 ### Database tables
 

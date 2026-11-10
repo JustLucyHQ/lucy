@@ -7,7 +7,7 @@ create or replace function lucy.memory_vector_search(
 ) returns table(id uuid, rank int) language sql stable as $$
   select m.id, row_number() over (order by m.embedding <=> p_query)::int
   from lucy.memories m
-  where (m.user_id = p_user or m.visibility = 'global')
+  where (m.user_id = p_user or (m.user_id is null and m.visibility = 'global'))
     and m.invalid_at is null and m.embedding is not null
   order by m.embedding <=> p_query
   limit p_limit;
@@ -49,7 +49,7 @@ create or replace function lucy.memory_keyword_search(
   select m.id,
          row_number() over (order by pg_catalog.ts_rank(m.fts, pg_catalog.websearch_to_tsquery('english', p_query)) desc)::int
   from lucy.memories m
-  where (m.user_id = p_user or m.visibility = 'global')
+  where (m.user_id = p_user or (m.user_id is null and m.visibility = 'global'))
     and m.invalid_at is null
     and m.fts @@ pg_catalog.websearch_to_tsquery('english', p_query)
   order by pg_catalog.ts_rank(m.fts, pg_catalog.websearch_to_tsquery('english', p_query)) desc
