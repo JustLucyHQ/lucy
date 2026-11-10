@@ -91,7 +91,8 @@ export async function ingestCommand(
     type: 'semantic',
     content: text,
     importance: computeImportance(8, kind === 'global' ? 'user_global' : 'user_remember'),
-    visibility: kind === 'global' ? 'global' : 'private',
+    // A /global note stays with its author: only ownerless rows (Lucy's own) are global to everyone.
+    visibility: 'private',
     source: kind === 'global' ? 'user_global' : 'user_remember',
     sourceConversationId: conversationId,
   }]);

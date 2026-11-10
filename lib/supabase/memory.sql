@@ -85,15 +85,16 @@ alter table memory_entities enable row level security;
 create policy "own profile" on memory_profiles
   for all using (auth.uid() = user_id);
 
--- read: own rows or global; write: own rows only.
+-- read: own rows, or global rows with NO owner (Lucy's own memory); write: own rows only.
+-- A user's row is never readable by another user, whatever its visibility (memory_global_scope.sql).
 -- (project-membership widening arrives with the org tier in Phase C.)
 create policy "read memories" on memories
-  for select using (auth.uid() = user_id or visibility = 'global');
+  for select using (auth.uid() = user_id or (user_id is null and visibility = 'global'));
 create policy "write own memories" on memories
   for all using (auth.uid() = user_id);
 
 create policy "read entities" on entities
-  for select using (auth.uid() = user_id or visibility = 'global');
+  for select using (auth.uid() = user_id or (user_id is null and visibility = 'global'));
 create policy "write own entities" on entities
   for all using (auth.uid() = user_id);
 

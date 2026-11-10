@@ -65,7 +65,8 @@ export class LocalMemoryStore implements MemoryStore {
 
   private inScope(m: MemoryRecord, scope: MemoryScope): boolean {
     if (m.invalidAt) return false;
-    if (m.visibility === 'global') return true;
+    // Global = Lucy's own memory (no owner). A user's row is theirs alone, whatever its visibility.
+    if (m.visibility === 'global' && m.userId == null) return true;
     return m.userId === scope.userId;
   }
 

@@ -19,7 +19,7 @@ export interface SlashCommand {
 export const SLASH_COMMANDS: SlashCommand[] = [
   { name: 'remember', label: '/remember', description: 'Save a fact to memory', argHint: 'what to remember', kind: 'remember' },
   { name: 'forget', label: '/forget', description: 'Forget memories matching the text', argHint: 'what to forget', kind: 'forget' },
-  { name: 'global', label: '/global', description: 'Save shared knowledge for everyone', argHint: 'what to share', kind: 'global' },
+  { name: 'global', label: '/global', description: 'Save a fact to memory (only you see it)', argHint: 'what to remember', kind: 'global' },
   { name: 'memories', label: '/memories', description: 'Show what Lucy remembers', kind: 'memories' },
   { name: 'incognito', label: '/incognito', description: "Toggle: don't capture memories this session", kind: 'incognito' },
   { name: 'new', label: '/new', description: 'Start a new conversation', kind: 'new' },

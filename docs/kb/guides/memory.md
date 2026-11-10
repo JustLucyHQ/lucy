@@ -110,7 +110,7 @@ Type `/` in the chat input for autocomplete. Saving requires memory to be on
 | Command | Effect |
 |---|---|
 | `/remember <fact>` | Save a fact immediately (high priority) |
-| `/global <fact>` | Save shared knowledge visible to everyone in the deployment |
+| `/global <fact>` | Save a fact for all your chats and projects; only you see it |
 | `/forget <text>` | Forget memories whose content matches the text |
 | `/memories` | Show how many memories Lucy holds, plus a few recent ones |
 | `/incognito` | Toggle "no capture" for this session |
@@ -126,7 +126,7 @@ You:  /remember the staging DB is on port 6543
 Lucy: 🧠 Saved to memory.
 
 You:  /global I prefer concise answers with code first
-Lucy: 🧠 Saved to memory (shared globally).
+Lucy: 🧠 Saved to memory.
 
 You:  /forget staging DB
 Lucy: 🗑️ Forgot 1 memory matching "staging DB".
@@ -137,10 +137,11 @@ Lucy: 🗑️ Forgot 1 memory matching "staging DB".
 | Visibility | Who sees it |
 |---|---|
 | **Private** (default) | Only you |
-| **Global** (`/global`) | Everyone in the deployment (shared knowledge) |
+| **Global** | Shared memory that no user owns. Users cannot create it |
 
 Memories are isolated per user by row-level security in connected mode, and per
-browser in standalone mode. Forgetting with `/forget` archives matching memories
+browser in standalone mode. A memory that belongs to a user is never shown to another user,
+whatever its visibility (a `/global` note included). Forgetting with `/forget` archives matching memories
 immediately.
 
 ## Your controls — Settings → Memory
