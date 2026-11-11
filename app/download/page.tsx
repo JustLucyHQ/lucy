@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 // Fallback shown if the GitHub "latest release" lookup fails; the DownloadPanel
 // otherwise links directly to the newest release's installers.
-const VERSION = '0.1.9';
+const VERSION = '0.1.10';
 
 const PERKS: { icon: LucideIcon; title: string; body: string }[] = [
   { icon: ShieldCheck, title: 'Local-first by default', body: 'Your chats, memory, and provider keys stay on your machine. No account needed to start.' },

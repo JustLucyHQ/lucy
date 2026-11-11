@@ -17,7 +17,7 @@ interface Platform {
 }
 
 // Direct per-OS installer URLs for the given version, e.g.
-//   https://github.com/JustLucyHQ/lucy/releases/download/v0.1.9/Lucy.Setup.0.1.9.exe
+//   https://github.com/JustLucyHQ/lucy/releases/download/v0.1.10/Lucy.Setup.0.1.10.exe
 // (asset names match what electron-builder + GitHub produce — spaces become dots).
 function platforms(version: string): Platform[] {
   const base = `${GITHUB_URL}/releases/download/v${version}`;
