@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
           setAll: (list) => list.forEach(({ name, value, options }) => res.cookies.set(name, value, options)),
         },
       });
-      await sb.auth.signOut(); // revokes the refresh token, not just the cookie
+      await sb.auth.signOut({ scope: 'local' }); // revokes this browser's refresh token only; the person's other devices stay signed in
     } catch {
       /* signing out must never fail — the cookies are cleared below either way */
     }
