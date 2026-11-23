@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     if (!client) return;
     clear2faPassed();
-    await client.auth.signOut();
+    await client.auth.signOut({ scope: 'local' }); // this device only (a global sign-out also ended the phone and other PCs)
   };
 
   const signInWithGoogle = async () => {

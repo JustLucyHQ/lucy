@@ -23,7 +23,7 @@ function Challenge() {
     const { error } = await sb.auth.mfa.verify({ factorId: totp.id, challengeId: challenge.data.id, code });
     if (error) {
       const n = attempts + 1; setAttempts(n);
-      if (n >= 5) { await sb.auth.signOut(); router.push('/auth/account-locked'); return; }
+      if (n >= 5) { await sb.auth.signOut({ scope: 'local' }); router.push('/auth/account-locked'); return; }
       setError(`Invalid code. ${5 - n} attempts left.`); return;
     }
     const { data } = await sb.auth.getUser();
